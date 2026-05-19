@@ -1,0 +1,90 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "eval-harness"
+version = "0.1.0"
+description = "Local evaluation framework for document parsing and RAG systems"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "pydantic>=2",
+    "jsonschema>=4",
+    "pandas",
+    "pyyaml",
+    "jinja2",
+    "pypdf",
+    "chromadb",
+    "huggingface-hub",
+    "docling>=2",
+    "rapidfuzz>=3",
+    "apted>=1",
+    "beautifulsoup4>=4",
+    "lxml>=5",
+    "torch",
+    "torchmetrics[detection]>=1",
+    "nltk",
+    "evaluate",
+    "pycocotools",
+    "beartype",
+    "sentence-transformers>=5.5.0",
+    "openai>=1.0.0",
+    "anthropic>=0.102.0",
+    "python-dotenv",
+    "sacrebleu>=2.6.0",
+]
+
+[project.scripts]
+eval-parsing = "eval_harness.runners.run_parsing_eval:main"
+eval-rag = "eval_harness.runners.run_rag_eval:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "pytest-cov>=4",
+    "ruff>=0.8",
+    "black>=24",
+    "mypy>=1",
+    "types-pyyaml",
+    "types-jsonschema",
+]
+
+[tool.ruff]
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "D"]
+ignore = ["D203", "D212"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["D"]  # Allow docstring issues in tests
+
+[tool.black]
+line-length = 100
+target-version = ["py313"]
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+warn_return_any = true
+warn_unused_ignores = true
+disallow_untyped_defs = true
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_defs = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-v --tb=short"
+
+[tool.coverage.run]
+source = ["src"]
+branch = true
+
+[tool.coverage.report]
+precision = 2
+show_missing = true
+skip_covered = false

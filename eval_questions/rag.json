@@ -1,0 +1,75 @@
+{
+  "schema_version": "1.0.0",
+  "questions": [
+    {
+      "question_id": "retrieval_recall_at_5",
+      "pillar": "retrieval",
+      "criterion": "recall_at_k",
+      "description": "Does at least one of the top-5 retrieved chunks overlap a gold span?",
+      "evaluator": {
+        "kind": "deterministic",
+        "metric": "recall_at_k",
+        "params": {
+          "k": 5
+        },
+        "threshold": {
+          "operator": ">=",
+          "value": 0.7
+        }
+      },
+      "required_content": ["retrieved_chunks", "gold_spans"],
+      "scope_guardrail": "Do not penalize the retriever for ranking when at least one relevant chunk is in top-k. Rank quality is measured separately by MRR.",
+      "severity": "blocker"
+    },
+    {
+      "question_id": "retrieval_precision_at_5",
+      "pillar": "retrieval",
+      "criterion": "precision_at_k",
+      "description": "What fraction of the top-5 retrieved chunks overlap a gold span?",
+      "evaluator": {
+        "kind": "deterministic",
+        "metric": "precision_at_k",
+        "params": {
+          "k": 5
+        }
+      },
+      "required_content": ["retrieved_chunks", "gold_spans"],
+      "scope_guardrail": "Precision under 1.0 is acceptable if recall is high - the generator can filter noise. Use this metric for trend tracking, not pass/fail.",
+      "severity": "minor"
+    },
+    {
+      "question_id": "retrieval_mrr",
+      "pillar": "retrieval",
+      "criterion": "mrr",
+      "description": "Mean Reciprocal Rank - measures how highly the first relevant chunk is ranked",
+      "evaluator": {
+        "kind": "deterministic",
+        "metric": "mrr",
+        "threshold": {
+          "operator": ">=",
+          "value": 0.5
+        }
+      },
+      "required_content": ["retrieved_chunks", "gold_spans"],
+      "scope_guardrail": "MRR is sensitive to the rank of the first relevant result. Use this for ranking quality assessment.",
+      "severity": "major"
+    },
+    {
+      "question_id": "retrieval_span_overlap_f1",
+      "pillar": "retrieval",
+      "criterion": "span_overlap_f1",
+      "description": "Character-level F1 overlap between retrieved chunks and gold spans",
+      "evaluator": {
+        "kind": "deterministic",
+        "metric": "span_overlap_f1",
+        "threshold": {
+          "operator": ">=",
+          "value": 0.6
+        }
+      },
+      "required_content": ["retrieved_chunks", "gold_spans"],
+      "scope_guardrail": "Measures how well retrieved chunks cover the gold answer text, accounting for both precision and recall.",
+      "severity": "major"
+    }
+  ]
+}

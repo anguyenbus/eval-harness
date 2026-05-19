@@ -1,0 +1,73 @@
+{
+  "schema_version": "1.0.0",
+  "questions": [
+    {
+      "question_id": "parsing_text_fidelity",
+      "pillar": "parsing",
+      "criterion": "char_level_f1",
+      "description": "Character-level F1 between extracted text and gold text content",
+      "evaluator": {
+        "kind": "deterministic",
+        "metric": "char_level_f1",
+        "threshold": {
+          "operator": ">=",
+          "value": 0.95
+        }
+      },
+      "required_content": ["parser_output", "gold_parser_elements"],
+      "scope_guardrail": "Normalize whitespace and unicode before comparison. Do not penalize header/footer differences if gold set excludes them.",
+      "severity": "major"
+    },
+    {
+      "question_id": "parsing_structure_recall",
+      "pillar": "parsing",
+      "criterion": "element_type_detection",
+      "description": "Detection coverage over element types (text_block, table, figure, equation, etc.)",
+      "evaluator": {
+        "kind": "deterministic",
+        "metric": "exact_match",
+        "threshold": {
+          "operator": ">=",
+          "value": 0.90
+        }
+      },
+      "required_content": ["parser_output", "gold_parser_elements"],
+      "scope_guardrail": "Only count element types present in gold elements. Extra predicted types are not penalized.",
+      "severity": "major"
+    },
+    {
+      "question_id": "parsing_table_teds",
+      "pillar": "parsing",
+      "criterion": "table_teds",
+      "description": "Tree Edit Distance Similarity for tables - measures structural and content fidelity",
+      "evaluator": {
+        "kind": "deterministic",
+        "metric": "table_teds",
+        "threshold": {
+          "operator": ">=",
+          "value": 0.85
+        }
+      },
+      "required_content": ["parser_output", "gold_parser_elements"],
+      "scope_guardrail": "Compare only tables present in both predicted and gold. Missing tables are counted separately via structure_recall.",
+      "severity": "major"
+    },
+    {
+      "question_id": "parsing_reading_order",
+      "pillar": "parsing",
+      "criterion": "kendall_tau",
+      "description": "Kendall tau correlation for reading order validation between predicted and gold element sequences",
+      "evaluator": {
+        "kind": "deterministic",
+        "metric": "reading_order_kendall_tau",
+        "threshold": {
+          "operator": ">=",
+          "value": 0.80
+        }
+      },
+      "required_content": ["parser_output", "gold_parser_elements"],
+      "scope_guardrail": "Only consider elements that appear in both predicted and gold sequences.",
+      "severity": "major"
+    }
+  ]
+}
