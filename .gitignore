@@ -47,7 +47,6 @@ venv.bak/
 .uv/
 
 # Django/Flask
-*.log
 local_settings.py
 db.sqlite3
 db.sqlite3-journal
@@ -130,7 +129,6 @@ cython_debug/
 # Vim
 *.swp
 *.swo
-*~
 
 # Emacs
 \#*\#
@@ -194,14 +192,11 @@ $RECYCLE.BIN/
 # Logs & Temporary Files
 # ============================================================================
 
-*.log
 logs/
 *.log.*
 *.tmp
 *.temp
 *.bak
-*.swp
-*~
 
 # ============================================================================
 # AWS & Cloud
@@ -231,5 +226,6 @@ extraction_result.json
 *.json.bak
 
 # Working directories (keep structure, ignore contents)
-data/*
-references/*
+data/
+references/
+results/
