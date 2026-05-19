@@ -175,7 +175,7 @@ eval-harness is designed for production use:
 
 **A:** Three steps:
 
-1. **Install**: `./setup_venv.sh && source venv/bin/activate`
+1. **Install**: `uv sync`
 2. **Copy adapter**: `cp examples/omnidocbench_adapter.py my_adapter.py`
 3. **Run**: `eval-parsing --dataset omnidocbench --parser my_adapter --limit 10`
 

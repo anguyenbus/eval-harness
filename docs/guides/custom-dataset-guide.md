@@ -8,8 +8,7 @@ Your team has proprietary data and wants to use eval-harness for evaluation. Thi
 
 ```bash
 # 1. Install eval-harness
-./setup_venv.sh
-source venv/bin/activate
+uv sync
 
 # 2. Create dataset loader (~100 lines)
 # 3. Create adapter for your parser (~50 lines)

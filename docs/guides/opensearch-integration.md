@@ -37,8 +37,7 @@ This guide shows how to integrate an OpenSearch-backed RAG system for evaluation
 ```bash
 git clone <your-repo>
 cd eval-harness
-./setup_venv.sh
-source venv/bin/activate
+uv sync
 ```
 
 ### Step 2: Implement Your Query Function
