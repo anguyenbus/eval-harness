@@ -6,14 +6,15 @@
 
 ## 1. Purpose
 
-This guide explains how to implement adapters for integrating custom parsers and RAG systems with eval-harness.
+This guide explains how to integrate your custom parser or RAG system with eval-harness using adapters.
 
 ## 2. Adapter Pattern Overview
 
 ### 2.1 Problem Solved
 
 Different systems produce different output formats. The adapter pattern:
-- **Zero modifications** to user code
+
+- **Zero modifications** to your code
 - **Single metrics implementation** for all systems
 - **Schema validation** catches errors early
 
@@ -21,377 +22,218 @@ Different systems produce different output formats. The adapter pattern:
 
 ```mermaid
 flowchart LR
-    A[User System] -->|raw output| B[Adapter]
+    A[Your System] -->|raw output| B[Adapter]
     B -->|validate| C[Schema]
     C -->|validated| D[Metrics]
-    B -->|valid output| D
+    B -->|send traces| E[Phoenix]
 ```
+
+The adapter sits between your system and the evaluation framework. It validates your output, sends telemetry to Phoenix, and passes validated data to metrics calculation.
 
 ## 3. Parser Adapter
 
-### 3.1 Interface
+### 3.1 How It Works
 
-```python
-from pathlib import Path
-from typing import Any, Callable
+Your parser function takes a PDF path and returns a dictionary. The adapter wraps this function, validates the output against the schema, and emits telemetry.
 
-ParseCallable = Callable[[Path], dict[str, Any]]
+You don't need to modify your parser code. Just wrap it.
 
-class ParserAdapter:
-    def __init__(self, parse_callable: ParseCallable | None = None) -> None:
-        if parse_callable is None:
-            from eval_harness.stubs.stub_parser import parse
-            self._parse = parse
-        else:
-            self._parse = parse_callable
-    
-    def parse(self, pdf_path: Path) -> dict[str, Any]:
-        output = self._parse(pdf_path)
-        schema_validate(output, Path("contracts/parser_output.schema.json"))
-        return output
-```
+### 3.2 Integration Steps
 
-### 3.2 Implementing a Custom Parser
+**Step 1: Write your parse function**
 
-**Step 1:** Write your parse function
-```python
-def my_parser(pdf_path: Path) -> dict:
-    # Your existing parser code
-    result = parse_pdf(pdf_path)
-    return {
-        "pages": result.pages,
-        "elements": result.elements,
-        # ... any format
-    }
-```
+Create a function that takes a file path and returns your parser's output in whatever format it naturally produces.
 
-**Step 2:** Create adapter
-```python
-from eval_harness.adapters.parser_adapter import ParserAdapter
+**Step 2: Create the adapter**
 
-adapter = ParserAdapter(my_parser)
-output = adapter.parse(Path("document.pdf"))
-# output guaranteed to validate against schema
-```
+Pass your function to `ParserAdapter`. The adapter will call your function, validate the output, and handle schema errors.
 
-**Step 3:** Write conversion function (if needed)
-```python
-def convert_to_eval_harness(your_output: dict, pdf_path: Path) -> dict:
-    elements = []
-    char_offset = 0
-    
-    for item in your_output["elements"]:
-        elements.append({
-            "element_id": f"{pdf_path.stem}_{len(elements)}",
-            "type": map_type(item["type"]),
-            "page_index": item.get("page", 0),
-            "char_span": [char_offset, char_offset + len(item["text"])],
-            "text": item["text"],
-            "content": {"kind": "text"}
-        })
-        char_offset += len(item["text"])
-    
-    return {
-        "schema_version": "1.0.0",
-        "parser_version": "1.0.0",
-        "source": {
-            "doc_id": pdf_path.stem,
-            "filename": pdf_path.name,
-            "mime_type": "application/pdf"
-        },
-        "pages": your_output.get("pages", []),
-        "elements": elements
-    }
+**Step 3: Run evaluation**
 
-def map_type(your_type: str) -> str:
-    mapping = {
-        "heading": "heading",
-        "body": "paragraph",
-        "table": "table"
-    }
-    return mapping.get(your_type, "paragraph")
-```
+Call `adapter.parse()` with a PDF path. Output is guaranteed to validate against the schema.
 
-### 3.3 Minimal Adapter Example
+### 3.3 Output Format
 
-```python
-from pathlib import Path
-from eval_harness.adapters.parser_adapter import ParserAdapter
+If your parser already outputs the standard schema format, no conversion needed. If not, write a thin conversion layer that maps your fields to the standard schema:
 
-def minimal_parser(pdf_path: Path) -> dict:
-    """Minimal adapter for text-only evaluation."""
-    from pypdf import PdfReader
-    
-    reader = PdfReader(pdf_path)
-    text = ""
-    for page in reader.pages:
-        text += page.extract_text()
-    
-    return {
-        "schema_version": "1.0.0",
-        "parser_version": "1.0.0",
-        "source": {
-            "doc_id": pdf_path.stem,
-            "filename": pdf_path.name,
-            "mime_type": "application/pdf"
-        },
-        "pages": [{"page_index": 0, "width": 612, "height": 792}],
-        "elements": [{
-            "element_id": "elem_0",
-            "type": "paragraph",
-            "text": text,
-            "page_index": 0,
-            "char_span": [0, len(text)],
-            "content": {"kind": "text"}
-        }]
-    }
+- `schema_version`, `parser_version`: version strings
+- `source`: document metadata (ID, filename, MIME type)
+- `pages`: array of page objects with dimensions
+- `elements`: array of extracted elements with type, text, position
 
-adapter = ParserAdapter(minimal_parser)
-```
+### 3.4 Element Types
+
+Standard element types: `paragraph`, `heading`, `table`, `list`, `figure`, `equation`, `page_break`. Map your types to these.
+
+### 3.5 Minimal Example
+
+Simplest possible adapter: extract all text as one paragraph element. Useful for quick testing or text-only evaluation.
 
 ## 4. RAG Adapter
 
-### 4.1 Interface
+### 4.1 How It Works
 
-```python
-from pathlib import Path
-from typing import Any, Callable
+Your RAG query function takes a question and corpus directory, returns retrieved chunks and generated answer. The adapter validates output and emits telemetry to Phoenix.
 
-QueryCallable = Callable[[str, Path], dict[str, Any]]
+### 4.2 Integration Steps
 
-class RagAdapter:
-    def __init__(self, query_callable: QueryCallable | None = None) -> None:
-        if query_callable is None:
-            from eval_harness.stubs.stub_ingestion import query
-            self._query = query
-        else:
-            self._query = query_callable
-    
-    def query(self, question: str, corpus_dir: Path) -> dict[str, Any]:
-        output = self._query(question, corpus_dir)
-        schema_validate(output, Path("contracts/rag_query_output.schema.json"))
-        return output
-```
+**Step 1: Write your query function**
 
-### 4.2 Implementing a Custom RAG System
+Create a function that takes a question and corpus directory, returns your RAG system's output.
 
-**Step 1:** Write your query function
-```python
-def my_rag_query(question: str, corpus_dir: Path) -> dict:
-    # Your existing RAG code
-    chunks = retrieve(question, corpus_dir)
-    answer = generate(question, chunks)
-    
-    return {
-        "answer": answer,
-        "retrieved": chunks,
-        # ... any format
-    }
-```
+**Step 2: Create the adapter**
 
-**Step 2:** Create adapter
-```python
-from eval_harness.adapters.rag_adapter import RagAdapter
+Pass your function to `RagAdapter`. Adapter validates output and handles schema errors.
 
-adapter = RagAdapter(my_rag_query)
-output = adapter.query("What is this?", Path("corpus"))
-# output guaranteed to validate against schema
-```
+**Step 3: Run evaluation**
 
-**Step 3:** Write conversion function (if needed)
-```python
-def convert_to_eval_harness(
-    question: str,
-    corpus_dir: Path,
-    your_retrieved: list,
-    your_answer: str,
-) -> dict:
-    # Build retrieved chunks
-    retrieved_chunks = []
-    for item in your_retrieved:
-        retrieved_chunks.append({
-            "chunk_id": item["id"],
-            "score": item["score"],
-            "char_span": item.get("span", [0, 100])
-        })
-    
-    # Build answer
-    answer = {
-        "text": your_answer,
-        "answer_supported": True,  # or your judgment
-        "citations": [{"chunk_ids": [c["chunk_id"] for c in retrieved_chunks[:3]]}]
-    }
-    
-    return {
-        "answer": answer,
-        "retrieved_chunks": retrieved_chunks,
-        "timings_ms": {
-            "retrieval": 50,
-            "generation": 500,
-            "total": 550
-        }
-    }
-```
+Call `adapter.query()` with a question and corpus path.
 
-### 4.3 Minimal RAG Adapter Example
+### 4.3 Output Format
 
-```python
-from pathlib import Path
-from eval_harness.adapters.rag_adapter import RagAdapter
+Standard RAG output requires:
 
-def minimal_rag_query(question: str, corpus_dir: Path) -> dict:
-    """Minimal RAG for demonstration."""
-    import time
-    
-    start = time.time()
-    
-    # Dummy retrieval
-    chunks = [
-        {"chunk_id": "doc1_chunk1", "score": 0.8, "char_span": [0, 100]},
-        {"chunk_id": "doc1_chunk2", "score": 0.6, "char_span": [100, 200]},
-    ]
-    
-    retrieval_ms = int((time.time() - start) * 1000)
-    
-    # Dummy generation
-    answer = f"Based on the documents, the answer is: {question}"
-    generation_ms = 100
-    
-    return {
-        "answer": {
-            "text": answer,
-            "answer_supported": False,
-            "citations": []
-        },
-        "retrieved_chunks": chunks,
-        "timings_ms": {
-            "retrieval": retrieval_ms,
-            "generation": generation_ms,
-            "total": retrieval_ms + generation_ms
-        }
-    }
+- `answer`: object with `text`, `answer_supported` (boolean), optional `citations`
+- `retrieved_chunks`: array with `chunk_id`, `score`, optional `char_span`
+- `timings_ms`: object with `retrieval`, `generation`, `total` times
 
-adapter = RagAdapter(minimal_rag_query)
-```
+If your system outputs different fields, write a conversion layer.
+
+### 4.4 LLM-as-Judge
+
+For RAG evaluation, the framework can use Anthropic Claude via Amazon Bedrock to judge:
+
+- **Answer supported**: Does the answer cite retrieved evidence?
+- **Citation quality**: Are citations valid and relevant?
+
+This provides more nuanced assessment than heuristic rules.
+
+### 4.5 Minimal Example
+
+Simplest possible adapter: return dummy retrieved chunks and a templated answer. Useful for testing the evaluation pipeline.
 
 ## 5. Schema Validation
 
-### 5.1 Validation Points
+### 5.1 When Validation Happens
 
-Validation happens in the adapter before returning to framework:
+Validation occurs in the adapter before returning to the framework. If validation fails:
 
-```python
-def parse(self, pdf_path: Path) -> dict[str, Any]:
-    output = self._parse(pdf_path)
-    schema_validate(output, schema_path)  # May raise
-    return output
-```
+- Error is recorded in Phoenix
+- Clear error message points to specific field
+- Evaluation continues with next document
 
-### 5.2 Error Handling
-
-```python
-try:
-    output = adapter.parse(pdf_path)
-except SchemaValidationError as e:
-    # Clear error message
-    print(f"Validation failed: {e.message}")
-    print(f"Path: {e.path}")
-    # Fix your output format
-```
-
-### 5.3 Common Validation Errors
+### 5.2 Common Validation Errors
 
 | Error | Cause | Fix |
 |-------|-------|-----|
-| Missing required field | `element_id` not provided | Add all required fields |
-| Wrong type | `page_index` is string not int | Use correct types |
-| Invalid enum | `type` = "heading" not "h1" | Use standard types |
-| Invalid char_span | `[start]` instead of `[start, end]` | Use 2-element array |
+| Missing required field | Required field not provided | Add all required fields from schema |
+| Wrong type | String instead of integer | Use correct types |
+| Invalid enum value | Unknown element type | Use standard type names |
+| Invalid span format | Single number instead of array | Use `[start, end]` format |
 
-## 6. Integration Patterns
+### 5.3 Validation Benefits
 
-### 6.1 Direct Function Integration
+- **Fail fast**: Catch errors immediately, not after metrics calculation
+- **Clear errors**: Know exactly which field is wrong
+- **Framework isolation**: Your bugs don't crash the evaluation
 
-```python
-# Your existing function
-def my_parse_function(pdf_path: str) -> dict:
-    ...
+## 6. Telemetry with Arize Phoenix
 
-# Wrap and use
-adapter = ParserAdapter(lambda p: my_parse_function(str(p)))
-```
+### 6.1 Automatic Tracing
 
-### 6.2 Class-based Integration
+Adapters automatically emit OpenTelemetry traces to Phoenix:
 
-```python
-class MyParser:
-    def parse(self, pdf_path: Path) -> dict:
-        ...
+- Parse/query latency
+- Validation success/failure
+- Metric calculation time
+- LLM judge calls (for RAG)
 
-parser = MyParser()
-adapter = ParserAdapter(parser.parse)
-```
+### 6.2 Span Attributes
 
-### 6.3 Module-based Integration
+Each trace includes useful attributes for debugging:
 
-```python
-# my_module/adapter.py
-def query(question: str, corpus_dir: Path) -> dict:
-    ...
+- Document ID or query ID
+- Parser or RAG system name
+- Schema version
+- Error details (if validation failed)
 
-# In runner
-from my_module.adapter import query
-adapter = RagAdapter(query)
-```
+### 6.3 Viewing Traces
 
-## 7. Testing Your Adapter
+Access traces via:
+- Phoenix UI: localhost:6006 (local) or cloud URL
+- Query by trace_id or job_id
+- CloudWatch Logs integration
 
-### 7.1 Unit Test
+## 7. Integration Patterns
 
-```python
-import pytest
-from pathlib import Path
+### 7.1 Direct Function
 
-def test_parser_adapter():
-    adapter = ParserAdapter(my_parser)
-    output = adapter.parse(Path("test.pdf"))
-    
-    # Verify schema compliance
-    assert "elements" in output
-    assert "schema_version" in output
-    
-    # Verify specific fields
-    assert len(output["elements"]) > 0
-    assert output["elements"][0]["element_id"] is not None
-```
+Pass any function matching the signature directly to the adapter.
 
-### 7.2 Schema Test
+### 7.2 Class Method
 
-```python
-def test_schema_validation():
-    from jsonschema import validate
-    
-    adapter = ParserAdapter(my_parser)
-    output = adapter.parse(Path("test.pdf"))
-    
-    # Load schema
-    with open("contracts/parser_output.schema.json") as f:
-        schema = json.load(f)
-    
-    # Should not raise
-    validate(instance=output, schema=schema)
-```
+If your parser is a class with a `parse` method, pass the method reference.
 
-## 8. Best Practices
+### 7.3 Lambda Wrapper
 
-1. **Always validate:** Don't skip schema validation
-2. **Use type hints:** Helps catch errors early
-3. **Provide versions:** Include `parser_version` for tracking
-4. **Handle errors gracefully:** Return meaningful error messages
-5. **Test with known documents:** Verify consistent output
-6. **Document your types:** If using custom element types, document mapping
+For minor signature mismatches, use a lambda to adapt your function.
 
-## 9. Related Documents
+## 8. Testing Your Adapter
+
+### 8.1 Unit Testing
+
+Test that your adapter produces valid output:
+
+- Check required fields present
+- Verify field types correct
+- Validate against schema directly
+
+### 8.2 Integration Testing
+
+Run evaluation on small dataset:
+
+- Verify CSV output generated
+- Check Phoenix traces visible
+- Confirm metrics calculated
+
+### 8.3 Error Handling
+
+Test with invalid input:
+
+- Missing PDF file
+- Malformed document
+- Empty results
+
+Verify adapter handles gracefully.
+
+## 9. Cloud Deployment
+
+### 9.1 Container Requirements
+
+For EKS deployment, package your adapter with the eval-harness container. Dependencies specified in `pyproject.toml`.
+
+### 9.2 IAM Permissions
+
+Ensure your pod/role has permissions for:
+
+- S3: read datasets, write results
+- Bedrock: invoke Claude model (for LLM-as-judge)
+- CloudWatch: write logs
+
+### 9.3 Configuration
+
+Dataset paths and Phoenix endpoint configured via environment variables or `eval_config.yaml` in S3.
+
+## 10. Best Practices
+
+1. **Don't skip validation**: Catches errors early
+2. **Include versions**: Track parser/RAG version for regression detection
+3. **Handle errors gracefully**: Return meaningful error messages
+4. **Test on known documents**: Verify consistent output
+5. **Check Phoenix traces**: Use telemetry for debugging
+6. **Document type mappings**: If using custom element types, document the mapping
+
+## 11. Related Documents
 
 - [001-Architecture-Overview](001-architecture-overview.md)
 - [003-Schema-Design](003-schema-design.md)

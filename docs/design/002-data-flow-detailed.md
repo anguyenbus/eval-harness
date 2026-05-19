@@ -11,18 +11,21 @@
 ```mermaid
 sequenceDiagram
     participant CLI as CLI
-    participant Runner as Runner
+    participant Runner as Cloud Runner
     participant Adapter as ParserAdapter
     participant Parser as User Parser
     participant Validator as Schema Validator
     participant Metrics as Metrics
+    participant Phoenix as Arize Phoenix
+    participant S3 as S3 Storage
 
     CLI->>Runner: eval-parsing --dataset --parser
     Runner->>Runner: load_config()
-    Runner->>Metrics: load_dataset()
-    Metrics-->>Runner: yield item
+    Runner->>S3: load_dataset()
+    S3-->>Runner: yield item
 
     loop For each item in dataset
+        Runner->>Phoenix: start_trace(doc_id)
         Runner->>Adapter: adapter.parse(pdf_path)
         Adapter->>Parser: parse(pdf_path)
         Parser-->>Adapter: raw_output
@@ -30,85 +33,54 @@ sequenceDiagram
         Validator-->>Adapter: validated_output
         Adapter-->>Runner: validated_output
 
+        Runner->>Phoenix: span_parse_complete
         Runner->>Metrics: to_markdown(output)
         Metrics-->>Runner: markdown
 
         Runner->>Metrics: calculate_all_metrics()
         Metrics-->>Runner: scores
 
-        Runner->>Runner: write_csv_row()
+        Runner->>Phoenix: span_metrics_complete
+        Runner->>S3: write_csv_row()
+        Runner->>Phoenix: end_trace()
     end
 
-    Runner-->>CLI: summary
+    Runner-->>CLI: summary + S3 URL
 ```
 
 ### 1.2 Data Transformations
 
-**Step 1: Raw Dataset Item**
-```json
-{
-  "layout_dets": [
-    {"category_type": "text_block", "text": "...", "order": 0, ...}
-  ],
-  "page_info": {"page_no": 0, "image_path": "page_001.png", ...}
-}
-```
+**Step 1: Raw Dataset Item (from S3)**
+Dataset loaded from S3 contains ground truth: layout detections, page info, text annotations.
 
 **Step 2: Gold Text Extraction**
-```
-Concatenated text in reading order: "Block 1 text. Block 2 text."
-```
+Concatenated text in reading order from the ground truth annotations.
 
-**Step 3: Parser Raw Output** (user-provided, any format)
-```json
-{
-  "pages": [...],
-  "elements": [...],
-  "metadata": {...}
-}
-```
+**Step 3: Parser Raw Output**
+Your parser produces output in whatever format it naturally returns.
 
-**Step 4: Validated Parser Output** (after adapter)
-```json
-{
-  "schema_version": "1.0.0",
-  "parser_version": "1.0.0",
-  "source": {"doc_id": "...", "filename": "..."},
-  "elements": [
-    {
-      "element_id": "elem_0",
-      "type": "paragraph",
-      "text": "...",
-      "page_index": 0,
-      "char_span": [0, 100],
-      "bbox": {"x0": 10, "y0": 20, "x1": 100, "y1": 30}
-    }
-  ]
-}
-```
+**Step 4: Validated Parser Output**
+Adapter validates and normalizes to standard schema with document metadata, pages, and elements.
 
 **Step 5: Markdown Conversion**
-```markdown
-Extracted text from predicted elements, preserving structure.
-```
+Extracted text converted to markdown for text similarity metrics.
 
 **Step 6: Metric Scores**
-```json
-{
-  "nid": 0.85,
-  "teds": 0.72,
-  "mhs": 0.90,
-  "ard": 0.15,
-  "bleu": 0.65,
-  "meteor": 0.58
-}
-```
+Calculated scores for NID, TEDS, MHS, ARD, BLEU, METEOR.
 
 **Step 7: CSV Row**
-```csv
-query_id,error,nid,nid_s,teds,teds_s,mhs,mhs_s,ard,bleu,meteor
-omnidocbench_0,,0.85,0.87,0.72,0.75,0.90,0.92,0.15,0.65,0.58
-```
+One row per document with all metrics as columns, written to S3.
+
+### 1.3 Telemetry Emitted
+
+For each document, Phoenix receives:
+
+| Span | Attributes |
+|------|------------|
+| `parse_document` | doc_id, parser_name, latency_ms, status |
+| `validate_schema` | schema_version, is_valid, error (if any) |
+| `calculate_metrics` | metric_name, value, latency_ms |
+| `write_result` | output_path, bytes_written |
 
 ## 2. RAG Evaluation Flow
 
@@ -117,26 +89,31 @@ omnidocbench_0,,0.85,0.87,0.72,0.75,0.90,0.92,0.15,0.65,0.58
 ```mermaid
 sequenceDiagram
     participant CLI as CLI
-    participant Runner as Runner
+    participant Runner as Cloud Runner
     participant Adapter as RagAdapter
     participant RAG as User RAG System
     participant Metrics as Metrics
+    participant Bedrock as Amazon Bedrock
+    participant Phoenix as Arize Phoenix
+    participant S3 as S3 Storage
 
     CLI->>Runner: eval-rag --dataset --slice
-    Runner->>Metrics: load_dataset()
-    Metrics-->>Runner: yield query
+    Runner->>S3: load_dataset()
+    S3-->>Runner: yield query
 
     loop For each query in dataset
+        Runner->>Phoenix: start_trace(query_id)
         Runner->>Adapter: adapter.query(question, corpus_dir)
-        Adapter->>RAG: query(question, corpus_dir)
 
+        Adapter->>RAG: query(question, corpus_dir)
         RAG->>RAG: embed(question)
         RAG->>RAG: retrieve(top_k)
         RAG->>RAG: generate(context)
-
         RAG-->>Adapter: raw_output
+
         Adapter->>Adapter: validate(raw_output, schema)
         Adapter-->>Runner: validated_output
+        Runner->>Phoenix: span_retrieval_complete
 
         Runner->>Metrics: calculate_recall()
         Metrics-->>Runner: recall_score
@@ -144,180 +121,187 @@ sequenceDiagram
         Runner->>Metrics: calculate_f1()
         Metrics-->>Runner: f1_score
 
-        Runner->>Runner: write_csv_row()
+        Runner->>Bedrock: llm_as_judge(answer, context)
+        Bedrock-->>Runner: judgment
+        Runner->>Phoenix: span_llm_judgment
+
+        Runner->>S3: write_csv_row()
+        Runner->>Phoenix: end_trace()
     end
 
-    Runner-->>CLI: summary
+    Runner-->>CLI: summary + S3 URL
 ```
 
 ### 2.2 Data Transformations
 
-**Step 1: Raw Dataset Item**
-```json
-{
-  "query_id": "cuad_0",
-  "question": "What is the expiration date?",
-  "gold_spans": [[150, 250], [400, 450]],
-  "gold_answer": "This agreement expires on..."
-}
-```
+**Step 1: Raw Dataset Item (from S3)**
+Query with question, gold answer, and supporting evidence spans.
 
 **Step 2: RAG Query**
-```
-User question: "What is the expiration date?"
-Corpus directory: /path/to/legal/documents
-```
+Your RAG system receives the question and corpus directory.
 
-**Step 3: RAG Raw Output** (user-provided, any format)
-```json
-{
-  "retrieved": [...],
-  "answer": {...},
-  "timing": {...}
-}
-```
+**Step 3: RAG Raw Output**
+Your RAG returns retrieved chunks and generated answer.
 
-**Step 4: Validated RAG Output** (after adapter)
-```json
-{
-  "answer": {
-    "text": "The agreement expires on...",
-    "answer_supported": true,
-    "citations": [{"chunk_ids": ["doc1_chunk5"]}]
-  },
-  "retrieved_chunks": [
-    {
-      "chunk_id": "doc1_chunk5",
-      "score": 0.85,
-      "char_span": [145, 255]
-    }
-  ],
-  "timings_ms": {
-    "retrieval": 50,
-    "generation": 500,
-    "total": 550
-  }
-}
-```
+**Step 4: Validated RAG Output**
+Adapter validates structure includes answer with supported flag, retrieved chunks with scores, citations, and timing breakdown.
 
 **Step 5: Metric Calculation**
-- **Recall@k**: Check if any retrieved chunk overlaps gold spans
-- **Precision@k**: Relevant chunks / k
-- **F1**: Token overlap between gold and predicted answers
-- **Citation Precision**: Valid citations / total citations
+- Recall@k: Did any retrieved chunk overlap gold evidence?
+- Precision@k: How many retrieved chunks were relevant?
+- F1: Token overlap between gold and predicted answers
+- LLM judgment: Is answer supported by citations?
 
 **Step 6: CSV Row**
-```csv
-query_id,recall_at_k,precision_at_k,f1_score,answer_supported,citation_precision,...
-cuad_0,1.0,0.2,0.75,True,1.0,...
+One row per query with all metrics and timings, written to S3.
+
+### 2.3 Telemetry Emitted
+
+For each query, Phoenix receives:
+
+| Span | Attributes |
+|------|------------|
+| `rag_query` | query_id, corpus_name, latency_ms |
+| `retrieval` | top_k, retrieval_ms, chunk_ids |
+| `generation` | model_name, input_tokens, output_tokens, generation_ms |
+| `llm_judge` | judge_model, prompt_tokens, judgment, latency_ms |
+| `metrics_calc` | metric_name, value, latency_ms |
+
+## 3. Cloud Execution Flow
+
+### 3.1 Job Submission
+
+```mermaid
+flowchart LR
+    A[User submits job] --> B{Deployment mode}
+    B -->|Local dev| C[Run locally]
+    B -->|EKS| D[Submit to Job Queue]
+    B -->|Lambda| E[Invoke Lambda]
+
+    D --> F[Worker Pod picks up job]
+    F --> G[Pull dataset from S3]
+    G --> H[Process documents]
+
+    E --> I[Load dataset from S3]
+    I --> H
+
+    H --> J[Write results to S3]
+    J --> K[Update job status]
+    K --> L[Notify user complete]
+
+    style C fill:#e8f5e9
+    style F fill:#fff3e0
+    style I fill:#fff3e0
+    style L fill:#e1f5fe
 ```
 
-## 3. Error Handling Flow
+### 3.2 Scaling Behavior
 
-### 3.1 Parser Error Handling
+| Deployment | Scales On | Max Concurrency | Cost Model |
+|------------|-----------|-----------------|------------|
+| Local | N/A | 1 | Free (your machine) |
+| EKS | Queue depth | Configurable (HPA) | Pods per hour |
+| Lambda | Invocations | 1000 (default) | Per invocation + duration |
+
+### 3.3 Fault Tolerance
+
+- **Pod/Lambda restart**: Job status tracked in DynamoDB, resumes from last checkpoint
+- **S3 write failures**: Retries with exponential backoff
+- **Bedrock throttling**: Automatic retry with jitter
+- **Phoenix unavailable**: Traces buffered, sent when service recovers
+
+## 4. Error Handling Flow
+
+### 4.1 Parser Error Handling
 
 ```mermaid
 flowchart TD
     A[Parse PDF] -->|Success| B[Validate]
-    B --> C[Metrics]
-    A -->|Error| D[Write error row]
-    D --> E[CSV with error column<br/>All metrics = 0.0]
+    B --> C[Metrics + Telemetry]
+    A -->|Error| D[Record error in Phoenix]
+    D --> E[Write error row to S3]
+    E --> F[Continue to next document]
 ```
 
-**Error Row Format:**
-```csv
-query_id,error,nid,nid_s,...
-doc_001,"PDF file corrupted",0.0,0.0,...
-```
+Error row includes error message, metrics set to null.
 
-### 3.2 Schema Validation Error
+### 4.2 Schema Validation Error
 
 ```mermaid
 flowchart TD
     A[Raw Output] --> B[Validate]
     B -->|Valid| C[Return output]
-    B -->|Missing required| D[Raise ValueError]
-    B -->|Invalid type/value| E[SchemaValidationError]
+    B -->|Missing required| D[Record validation error]
+    B -->|Invalid type| D
+    D --> E[Phoenix: validation_failed]
+    E --> F[Continue to next]
 ```
 
-## 4. Output File Structure
+### 4.3 LLM Judge Error
 
-### 4.1 CSV File (Incremental)
+```mermaid
+flowchart TD
+    A[Call Bedrock] -->|Success| B[Record judgment]
+    A -->|Throttled| C[Retry with backoff]
+    A -->|Service error| C
+    C -->|Max retries| D[Fallback: heuristic judgment]
+    D --> E[Record fallback used]
+```
 
-**Naming:** `{dataset}_{parser|slice}_results_{timestamp}.csv`
+## 5. Output File Structure
 
-**Structure:**
-- Header written on first run
-- Rows appended one at a time
+### 5.1 S3 Output
+
+**Location pattern:**
+```
+s3://bucket-name/results/
+  ├── {dataset}_{parser}_{timestamp}.csv
+  └── {dataset}_{parser}_{timestamp}_summary.json
+```
+
+**CSV Structure:**
+- Header written on first document
+- Rows appended incrementally
 - File flushed after each write
 - Can resume after interruption
 
-**Example:**
-```
-results/omnidocbench_docling_results_20250119_143022.csv
-```
+**Summary JSON:**
+Contains dataset info, metrics averages, totals, and Phoenix UI link.
 
-### 4.2 JSON Summary (Final)
+### 5.2 Phoenix Trace Access
 
-**Naming:** Same base as CSV, `.json` extension
+Each job run generates a trace ID. Access via:
+- Phoenix UI: direct link to trace
+- API: query by trace_id or job_id
+- CloudWatch Logs: trace_id in log entries
 
-**Structure:**
-```json
-{
-  "dataset": "omnidocbench",
-  "parser": "docling",
-  "timestamp": "20250119_143022",
-  "csv_file": "omnidocbench_docling_results_20250119_143022.csv",
-  "metrics_avg": {
-    "nid": 0.8234,
-    "teds": 0.6156,
-    ...
-  },
-  "total_processed": 500,
-  "errors": 5
-}
-```
+## 6. Memory and Performance
 
-## 5. Memory Management
+### 6.1 Iterator Pattern Benefits
 
-### 5.1 Iterator Pattern Benefits
+Processing one document at a time means:
+- Constant memory usage regardless of dataset size
+- No need to load entire dataset into RAM
+- Graceful handling of datasets larger than compute capacity
 
-**Without Iterator:**
-```python
-# BAD: Loads entire dataset into memory
-dataset = list(load_dataset())  # All items in RAM
-for item in dataset:
-    process(item)
-```
+### 6.2 Streaming Writes
 
-**With Iterator:**
-```python
-# GOOD: One item at a time
-for item in load_dataset():  # Generator
-    process(item)
-    # Item garbage collected after processing
-```
+Each result written immediately to S3:
+- Progress visible in S3 as files grow
+- Crash recovery: partial results preserved
+- No memory accumulation
 
-### 5.2 Streaming CSV Writes
+### 6.3 Performance Targets
 
-**Pattern:**
-```python
-with open(output_file, 'a') as f:
-    writer = csv.DictWriter(f, fieldnames=...)
-    writer.writeheader()
+| Operation | Target | Strategy |
+|-----------|--------|----------|
+| Parse per document | <500ms | Optimized parser, cached models |
+| Metrics calculation | <100ms | Efficient algorithms, lazy eval |
+| LLM judgment | <3s | Claude Sonnet, prompt caching |
+| S3 write | <50ms | Multipart upload, retries |
 
-    for item in dataset:
-        result = process(item)
-        writer.writerow(result)
-        f.flush()  # Immediate write, no buffering
-```
-
-**Benefits:**
-- No accumulated results in memory
-- Visible progress during long runs
-- Crash recovery
-
-## 6. Related Documents
+## 7. Related Documents
 
 - [001-Architecture-Overview](001-architecture-overview.md)
 - [003-Schema-Design](003-schema-design.md)
+- [005-Adapter-Implementation](005-adapter-implementation.md)

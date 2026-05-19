@@ -7,10 +7,11 @@
 ## 1. Overview
 
 Eval-Harness uses JSON Schema contracts to define data interfaces. This ensures:
-- **Explicit documentation** — schema IS the specification
+
+- **Explicit documentation** — schema is the specification
 - **Runtime validation** — catch errors early
 - **Version management** — breaking changes require explicit version bump
-- **Tooling support** — generate validators, documentation
+- **Tooling support** — generate validators and documentation
 
 ## 2. Schema Files
 
@@ -26,108 +27,62 @@ Eval-Harness uses JSON Schema contracts to define data interfaces. This ensures:
 
 Universal schema for document parsing output. Normalizes different parser formats into a common structure for metric calculation.
 
-### 3.2 Structure
+### 3.2 Required Fields
 
-```json
-{
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "ParserOutput",
-  "type": "object",
-  "required": [
-    "schema_version",
-    "parser_version",
-    "source",
-    "pages",
-    "elements"
-  ],
-  "properties": {
-    "schema_version": {
-      "type": "string",
-      "description": "Schema version for compatibility checking"
-    },
-    "parser_version": {
-      "type": "string",
-      "description": "Parser version for regression tracking"
-    },
-    "source": {
-      "type": "object",
-      "description": "Source document metadata"
-    },
-    "pages": {
-      "type": "array",
-      "description": "Page-level metadata"
-    },
-    "elements": {
-      "type": "array",
-      "description": "Document elements in reading order"
-    }
-  }
-}
-```
+| Field | Type | Purpose |
+|-------|------|---------|
+| `schema_version` | string | Schema version for compatibility checking |
+| `parser_version` | string | Parser version for regression tracking |
+| `source` | object | Source document metadata |
+| `pages` | array | Page-level metadata (dimensions, DPI) |
+| `elements` | array | Document elements in reading order |
 
-### 3.3 Key Fields
+### 3.3 Source Metadata
 
-**Source Metadata:**
-```json
-"source": {
-  "doc_id": "unique_identifier",
-  "filename": "document.pdf",
-  "mime_type": "application/pdf",
-  "sha256": "optional_hash_for_cache_invalidation"
-}
-```
+Identifies where the data came from:
 
-**Element (Minimal):**
-```json
-{
-  "element_id": "elem_0",
-  "type": "paragraph",
-  "text": "Content here",
-  "page_index": 0,
-  "char_span": [0, 50],
-  "content": {"kind": "text"}
-}
-```
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `doc_id` | string | Yes | Unique document identifier |
+| `filename` | string | Yes | Original filename |
+| `mime_type` | string | Yes | Document MIME type (usually `application/pdf`) |
+| `sha256` | string | No | Hash for cache invalidation |
 
-**Element (Complete):**
-```json
-{
-  "element_id": "elem_0",
-  "type": "table",
-  "text": "Table representation",
-  "page_index": 0,
-  "char_span": [100, 500],
-  "bbox": {"x0": 50, "y0": 100, "x1": 500, "y1": 300},
-  "content": {
-    "kind": "table",
-    "rows": 3,
-    "cols": 2,
-    "cells": [...]
-  }
-}
-```
+### 3.4 Element Structure
 
-### 3.4 Element Types
+Each element represents a content unit (paragraph, table, heading, etc.):
 
-| Type | Description | Has bbox? | Content kind |
-|------|-------------|-----------|--------------|
-| `paragraph` | Body text | Optional | `text` |
-| `heading` | Heading/Title | Optional | `text` + `level` |
-| `table` | Table data | Recommended | `table` |
-| `list` | List items | Optional | `list` |
-| `figure` | Image/Figure | Recommended | `figure` |
-| `equation` | Math formula | Optional | `equation` |
-| `page_break` | Page separator | No | `page_break` |
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `element_id` | string | Yes | Unique identifier within document |
+| `type` | string | Yes | Element type (see table below) |
+| `text` | string | Yes | Extracted text content |
+| `page_index` | integer | Yes | Zero-based page number |
+| `char_span` | array | Yes | Character offsets [start, end] |
+| `bbox` | object | No | Bounding box coordinates |
+| `content` | object | Yes | Type-specific data |
 
-### 3.5 Design Rationale
+### 3.5 Element Types
+
+| Type | Description | Has bbox? | Content structure |
+|------|-------------|-----------|-------------------|
+| `paragraph` | Body text | Optional | `{"kind": "text"}` |
+| `heading` | Heading or title | Optional | `{"kind": "text", "level": 1-6}` |
+| `table` | Table data | Recommended | `{"kind": "table", "rows": N, "cols": M}` |
+| `list` | List items | Optional | `{"kind": "list", "items": [...]}` |
+| `figure` | Image or figure | Recommended | `{"kind": "figure", "uri": "..."}` |
+| `equation` | Math formula | Optional | `{"kind": "equation", "latex": "..."}` |
+| `page_break` | Page separator | No | `{"kind": "page_break"}` |
+
+### 3.6 Design Rationale
 
 **Why `char_span`?**
 - Enables RAG citation tracking
-- Allows text-level metrics
-- Supports span overlap detection
+- Allows text-level metrics (NID, BLEU)
+- Supports span overlap detection for recall calculation
 
-**Why discriminated `content`?**
-- Type-specific data (table rows, figure URIs)
+**Why discriminated `content` field?**
+- Type-specific data lives with element (table rows, figure URIs)
 - Extensible without breaking changes
 - Clear validation per content type
 
@@ -142,294 +97,137 @@ Universal schema for document parsing output. Normalizes different parser format
 
 Universal schema for RAG system responses. Normalizes different RAG formats for metric calculation.
 
-### 4.2 Structure
+### 4.2 Required Fields
 
-```json
-{
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "RagQueryOutput",
-  "type": "object",
-  "required": ["answer", "retrieved_chunks", "timings_ms"],
-  "properties": {
-    "answer": {
-      "type": "object",
-      "required": ["text", "answer_supported"],
-      "properties": {
-        "text": {"type": "string"},
-        "answer_supported": {"type": "boolean"},
-        "citations": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "required": ["chunk_ids"],
-            "properties": {
-              "chunk_ids": {
-                "type": "array",
-                "items": {"type": "string"}
-              }
-            }
-          }
-        }
-      }
-    },
-    "retrieved_chunks": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "required": ["chunk_id", "score"],
-        "properties": {
-          "chunk_id": {"type": "string"},
-          "score": {"type": "number"},
-          "char_span": {
-            "type": "array",
-            "minItems": 2,
-            "maxItems": 2
-          }
-        }
-      }
-    },
-    "timings_ms": {
-      "type": "object",
-      "required": ["total"],
-      "properties": {
-        "retrieval": {"type": "integer"},
-        "generation": {"type": "integer"},
-        "total": {"type": "integer"}
-      }
-    }
-  }
-}
-```
+| Field | Type | Purpose |
+|-------|------|---------|
+| `answer` | object | Generated answer with metadata |
+| `retrieved_chunks` | array | Chunks retrieved from corpus |
+| `timings_ms` | object | Performance breakdown |
 
-### 4.3 Key Fields
+### 4.3 Answer Structure
 
-**Answer:**
-```json
-{
-  "text": "Generated answer text",
-  "answer_supported": true,
-  "citations": [
-    {"chunk_ids": ["doc1_chunk5", "doc2_chunk3"]}
-  ]
-}
-```
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `text` | string | Yes | Generated answer text |
+| `answer_supported` | boolean | Yes | LLM judgment: is answer grounded in retrieved context? |
+| `citations` | array | No | References from answer to chunks |
 
-**Retrieved Chunk:**
-```json
-{
-  "chunk_id": "unique_identifier",
-  "score": 0.85,
-  "char_span": [100, 500]  // Optional: for recall calculation
-}
-```
+Each citation contains:
+- `chunk_ids`: array of chunk IDs referenced
 
-### 4.4 Design Rationale
+### 4.4 Retrieved Chunk Structure
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `chunk_id` | string | Yes | Unique chunk identifier |
+| `score` | number | Yes | Retrieval relevance score |
+| `char_span` | array | No | Character offsets for recall calculation |
+
+### 4.5 Timing Structure
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `retrieval` | integer | No | Retrieval latency in milliseconds |
+| `generation` | integer | No | Generation latency in milliseconds |
+| `total` | integer | Yes | End-to-end latency in milliseconds |
+
+### 4.6 Design Rationale
 
 **Why separate `retrieved_chunks` from `citations`?**
 - Retrieved: what system found
 - Citations: what answer claims to use
-- Enables citation quality metrics
+- Enables citation quality metrics (precision: valid citations / total)
 
 **Why `answer_supported` boolean?**
-- LLM-as-judge results
-- Heuristic checks
-- Simple flag for analysis
+- LLM-as-judge results (via Bedrock Claude)
+- Enables analysis of grounding quality
+- Simple flag for aggregation
 
 **Why `timings_ms` required?**
 - Performance is a first-class metric
-- Retrieval vs generation breakdown
-- Latency profiling
+- Breakdown reveals bottlenecks (retrieval vs generation)
+- Enables cost tracking (token counts derived from timing)
 
-## 5. Validation Strategy
+## 5. Telemetry Fields
 
-### 5.1 Validation Points
+### 5.1 Tracing Context
+
+Each output includes optional telemetry fields for Phoenix:
+
+| Field | Type | Purpose |
+|-------|------|---------|
+| `trace_id` | string | Links to Phoenix trace |
+| `job_id` | string | Links to evaluation job |
+| `timestamp_ms` | integer | Processing timestamp |
+
+### 5.2 LLM Usage (RAG only)
+
+For RAG evaluation, track Bedrock usage:
+
+| Field | Type | Purpose |
+|-------|------|---------|
+| `model_id` | string | Bedrock model identifier |
+| `input_tokens` | integer | Prompt token count |
+| `output_tokens` | integer | Completion token count |
+| `cost_usd` | number | Estimated cost |
+
+## 6. Validation Strategy
+
+### 6.1 Validation Points
+
+Validation happens in the adapter before returning to framework:
 
 ```
-┌────────────┐    validate    ┌────────────┐
-│ Raw Output │ ─────────────▶ │ Adapter    │
-└────────────┘               └──────┬─────┘
-                                   │
-                            Validated
-                            Output
+Raw Output → Adapter → Validate → Return Validated Output
+                      ↓
+                 Error on failure
 ```
 
-**Location:** In adapter before returning to framework.
+### 6.2 Error Handling
 
-**Benefits:**
-- Fail fast on bad data
-- Clear error messages
-- Framework isolation from user code bugs
+On validation failure:
+- Clear error message pointing to specific issue
+- Field path in error (e.g., `elements[0].char_span`)
+- Expected vs actual values
+- Trace ID for debugging in Phoenix
 
-### 5.2 Error Handling
+### 6.3 Version Management
 
-```python
-try:
-    validate(output, schema_path)
-except SchemaValidationError as e:
-    # Clear error message pointing to issue
-    raise ValueError(f"Invalid output: {e.message}")
-```
+**`schema_version` format:** `major.minor.patch`
 
-### 5.3 Version Management
+- **Major**: Breaking changes (removed fields, type changes)
+- **Minor**: Additions (new optional fields, new enum values)
+- **Patch**: Bug fixes (documentation, constraint corrections)
 
-**`schema_version` field:**
-- `major.minor.patch` format
-- Major: breaking changes
-- Minor: additions (backward compatible)
-- Patch: bug fixes
+**Compatibility check:** Framework warns on major version mismatch, errors on incompatible structure.
 
-**Compatibility check:**
-```python
-if output["schema_version"] != REQUIRED_VERSION:
-    # Warn or error based on major version difference
-    ...
-```
+## 7. Minimal Examples
 
-## 6. Schema Examples
+### 7.1 Minimal Parser Output
 
-### 6.1 Minimal Parser Output
+Contains one paragraph element, one page. All required fields present, no optional extras.
 
-```json
-{
-  "schema_version": "1.0.0",
-  "parser_version": "1.0.0",
-  "source": {
-    "doc_id": "doc001",
-    "filename": "doc001.pdf",
-    "mime_type": "application/pdf"
-  },
-  "pages": [
-    {"page_index": 0, "width": 612, "height": 792}
-  ],
-  "elements": [
-    {
-      "element_id": "e0",
-      "type": "paragraph",
-      "text": "Hello world",
-      "page_index": 0,
-      "char_span": [0, 11],
-      "content": {"kind": "text"}
-    }
-  ]
-}
-```
+### 7.2 Minimal RAG Output
 
-### 6.2 Complete Parser Output
+Contains answer text, retrieved chunk list, total timing. Sufficient for basic evaluation.
 
-```json
-{
-  "schema_version": "1.0.0",
-  "parser_version": "2.1.0",
-  "source": {
-    "doc_id": "annual_report_2024",
-    "filename": "report.pdf",
-    "mime_type": "application/pdf",
-    "sha256": "abc123..."
-  },
-  "pages": [
-    {
-      "page_index": 0,
-      "width": 612,
-      "height": 792,
-      "dpi": 200
-    }
-  ],
-  "elements": [
-    {
-      "element_id": "h1",
-      "type": "heading",
-      "text": "Annual Report 2024",
-      "page_index": 0,
-      "char_span": [0, 17],
-      "bbox": {"x0": 100, "y0": 50, "x1": 500, "y1": 80},
-      "content": {
-        "kind": "text",
-        "level": 1
-      }
-    },
-    {
-      "element_id": "t1",
-      "type": "table",
-      "text": "Table 1: Revenue",
-      "page_index": 0,
-      "char_span": [100, 500],
-      "bbox": {"x0": 50, "y0": 100, "x1": 550, "y1": 300},
-      "content": {
-        "kind": "table",
-        "rows": 5,
-        "cols": 3,
-        "header_rows": 1,
-        "cells": [
-          {"row": 0, "col": 0, "text": "Year"},
-          {"row": 0, "col": 1, "text": "Revenue"}
-        ]
-      }
-    }
-  ]
-}
-```
+## 8. Extension Points
 
-### 6.3 RAG Query Output
+### 8.1 Adding New Element Types
 
-```json
-{
-  "answer": {
-    "text": "The agreement expires on December 31, 2025.",
-    "answer_supported": true,
-    "citations": [
-      {"chunk_ids": ["contract_p5_chunk12"]}
-    ]
-  },
-  "retrieved_chunks": [
-    {
-      "chunk_id": "contract_p5_chunk12",
-      "score": 0.89,
-      "char_span": [1200, 1350]
-    },
-    {
-      "chunk_id": "contract_p3_chunk8",
-      "score": 0.72,
-      "char_span": [800, 950]
-    }
-  ],
-  "timings_ms": {
-    "retrieval": 45,
-    "generation": 520,
-    "total": 565
-  }
-}
-```
-
-## 7. Extension Points
-
-### 7.1 Adding New Element Types
-
-1. Add to `type` enum in schema
-2. Document new `content.kind` structure
+1. Add type name to schema enum
+2. Define `content.kind` structure
 3. Bump minor version
+4. Update metrics to handle new type if needed
 
-**Example:**
-```json
-{
-  "element_id": "f1",
-  "type": "footnote",
-  "text": "See reference...",
-  "page_index": 0,
-  "char_span": [500, 550],
-  "content": {
-    "kind": "footnote",
-    "refers_to": "elem_5"
-  }
-}
-```
+### 8.2 Adding New Telemetry
 
-### 7.2 Adding New Content Types
+1. Add optional field to schema
+2. Update Phoenix span attributes
+3. No version bump if optional
 
-1. Add new content kind structure
-2. Extend validation if needed
-3. Update metrics to handle new type
-
-## 8. Related Documents
+## 9. Related Documents
 
 - [001-Architecture-Overview](001-architecture-overview.md)
 - [002-Data-Flow-Detailed](002-data-flow-detailed.md)

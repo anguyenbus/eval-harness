@@ -6,350 +6,293 @@
 
 ## 1. System Purpose
 
-Eval-Harness is a local evaluation framework for document parsing and RAG (Retrieval-Augmented Generation) systems. It provides:
+Eval-Harness is a cloud-based evaluation framework for document parsing and RAG systems. It runs on AWS and provides:
 
-1. **Standardized metrics** for comparing parser/RAG quality
-2. **Public benchmark integrations** (OmniDocBench, DP-Bench, LegalBench-RAG)
-3. **Extensible adapter pattern** for plugging in custom systems
-4. **Local-only execution** — no data leaves the user's machine
+- **Standardized metrics** for comparing system quality
+- **Public benchmark integrations** (OmniDocBench, DP-Bench, LegalBench-RAG)
+- **Extensible adapter pattern** for plugging in custom systems
+- **Built-in observability** via Arize Phoenix telemetry
+- **LLM-powered evaluation** using Amazon Bedrock (Anthropic Claude)
 
-## 2. High-Level Architecture
+## 2. Cloud Architecture
 
 ```mermaid
 graph TB
-    subgraph CLI["CLI Layer"]
-        CLI_Entry["CLI Entry Points<br/>(eval-parsing, eval-rag)"]
+    subgraph User["User Layer"]
+        CLI["CLI Commands<br/>(eval-parsing, eval-rag)"]
         Config["Config Loader"]
-        Reporting["Reporting Module"]
     end
 
-    subgraph Engine["Evaluation Engine"]
-        ParsingEngine["Parsing Engine"]
-        RAGEngine["RAG Engine"]
+    subgraph AWS["AWS Cloud"]
+        subgraph Compute["EKS / Lambda Cluster"]
+            ParsingEngine["Parsing Engine"]
+            RAGEngine["RAG Engine"]
+        end
+
+        subgraph Bedrock["Amazon Bedrock"]
+            Claude["Anthropic Claude<br/>(LLM-as-Judge)"]
+        end
+
+        subgraph Telemetry["Arize Phoenix"]
+            Collector["OTel Collector"]
+            TraceStore["Trace Storage"]
+            Dashboard["Phoenix UI"]
+        end
     end
 
     subgraph Adapter["Adapter Layer"]
-        ParserAdapter["ParserAdapter<br/>+ validation"]
-        RagAdapter["RagAdapter<br/>+ validation"]
+        ParserAdapter["ParserAdapter"]
+        RagAdapter["RagAdapter"]
     end
 
     subgraph Metrics["Metrics Layer"]
-        TextMetrics["Text Similarity<br/>(NID, BLEU, METEOR)"]
-        StructureMetrics["Structure Analysis<br/>(TEDS, MHS, Layout)"]
-        RetrievalMetrics["Retrieval Quality<br/>(Recall@k, Precision)"]
+        TextMetrics["Text Metrics"]
+        StructureMetrics["Structure Metrics"]
+        RetrievalMetrics["Retrieval Metrics"]
     end
 
     subgraph Dataset["Dataset Layer"]
-        OmniLoader["OmniDocBench Loader"]
-        DPLoader["DP-Bench Loader"]
-        LegalLoader["LegalBench-RAG Loader"]
+        OmniLoader["OmniDocBench"]
+        DPLoader["DP-Bench"]
+        LegalLoader["LegalBench-RAG"]
     end
 
-    subgraph Contract["Contract Layer"]
-        Schemas["JSON Schema Definitions<br/>• parser_output<br/>• rag_query_output<br/>• eval_questions"]
+    subgraph Storage["AWS Storage"]
+        S3Datasets["S3: Datasets"]
+        S3Results["S3: Results"]
     end
 
-    CLI_Entry --> ParsingEngine
-    CLI_Entry --> RAGEngine
+    CLI --> ParsingEngine
+    CLI --> RAGEngine
     Config --> ParserAdapter
     Config --> RagAdapter
+
     ParsingEngine --> ParserAdapter
     RAGEngine --> RagAdapter
+
     ParserAdapter --> TextMetrics
     ParserAdapter --> StructureMetrics
     RagAdapter --> RetrievalMetrics
+
     OmniLoader --> ParsingEngine
     DPLoader --> ParsingEngine
     LegalLoader --> RAGEngine
-    TextMetrics --> Reporting
-    StructureMetrics --> Reporting
-    RetrievalMetrics --> Reporting
 
-    ParserAdapter -.->|"validates against"| Schemas
-    RagAdapter -.->|"validates against"| Schemas
+    ParserAdapter -.->|"sends traces"| Collector
+    RagAdapter -.->|"sends traces"| Collector
+    RAGEngine -.->|"LLM calls"| Claude
 
-    style CLI fill:#e1f5fe
-    style Adapter fill:#fff3e0
-    style Metrics fill:#f3e5f5
-    style Dataset fill:#e8f5e9
-    style Contract fill:#fce4ec
+    Collector --> TraceStore
+    TraceStore --> Dashboard
+
+    ParsingEngine --> S3Results
+    RAGEngine --> S3Results
+
+    style AWS fill:#f3e5f5
+    style Telemetry fill:#fff3e0
+    style Bedrock fill:#e8f5e9
 ```
 
 ## 3. Core Components
 
-### 3.1 CLI Entry Points
+### 3.1 Cloud Execution Layer
 
-Two primary commands:
+The framework runs on AWS using either:
 
-| Command | Purpose | Entry Point |
-|---------|---------|-------------|
-| `eval-parsing` | Evaluate document parsers | `runners/run_parsing_eval.py` |
-| `eval-rag` | Evaluate RAG systems | `runners/run_rag_eval.py` |
+- **EKS (Elastic Kubernetes Service)** for large-scale batch evaluations
+- **AWS Lambda** for on-demand, single-document evaluations
 
-### 3.2 Adapter Layer
+Choice depends on workload: EKS for throughput, Lambda for cost efficiency on sporadic usage.
 
-**Purpose:** Decouple user systems from evaluation framework via schema validation.
+### 3.2 Telemetry with Arize Phoenix
 
-**Pattern:**
-```python
-# User provides any function matching signature
-def my_parser(pdf_path: Path) -> dict:
-    return {...}  # Any format
+Every evaluation run emits OpenTelemetry traces to Arize Phoenix:
 
-# Adapter wraps and validates
-adapter = ParserAdapter(my_parser)
-output = adapter.parse(pdf_path)  # Guaranteed schema-conformant
-```
+- **Document processing latency** (end-to-end per document)
+- **Metric calculation time** (per metric type)
+- **LLM-as-judge calls** (prompt tokens, completion tokens, latency)
+- **Error rates** (parse failures, validation errors)
 
-**Benefits:**
-- Users don't modify their code
-- Framework gets standardized input
-- Schema validation catches errors early
+Phoenix UI runs as a sidecar service, accessible via port 6006 (local) or cloud-hosted URL.
 
-### 3.3 Metrics Layer
+### 3.3 LLM-as-Judge with Bedrock
 
-Organized by evaluation domain:
+For RAG evaluation, Anthropic Claude (via Amazon Bedrock) judges:
 
-```
-metrics/
-├── parsing/
-│   ├── text_similarity.py    → NID, BLEU, METEOR
-│   ├── structure_recall.py   → Layout mAP, Bbox precision
-│   ├── reading_order.py      → ARD (Average Rank Distance)
-│   ├── table_teds.py         → TEDS (Tree Edit Distance)
-│   └── mhs.py                → MHS (Markdown Hierarchical Similarity)
-└── (future) retrieval/       → Recall@k, Precision@k, Citation quality
-```
+- **Answer supported**: Does the answer cite retrieved evidence?
+- **Citation quality**: Are citations valid and relevant?
 
-### 3.4 Dataset Layer
+Benefits over heuristic checks: more nuanced judgment, better handling of ambiguous cases.
 
-**Iterator Pattern:** All loaders yield items one at a time (memory efficient).
+### 3.4 Adapter Layer
 
-```python
-def load_omnidocbench(root: Path) -> Iterator[tuple]:
-    for page in dataset:
-        yield (query_id, pdf_path, ground_truth)
-```
+Decouples user systems from evaluation framework. Your parser/RAG produces any format; adapter validates and normalizes.
 
-**Supported Benchmarks:**
+No code changes required on your side.
 
-| Benchmark | Domain | Format | Size |
-|-----------|--------|--------|------|
-| OmniDocBench | Multi-modal parsing | JSON + images | 593 pages (EN-only) |
-| DP-Bench | Digital PDF parsing | JSON + PDFs | 1,052 docs |
-| LegalBench-RAG | Legal Q&A | JSON + text | 6,889 queries |
+### 3.5 Metrics Layer
 
-## 4. Data Flows
+| Category | Metrics | Purpose |
+|----------|---------|---------|
+| Text Similarity | NID, BLEU, METEOR | Extracted text quality |
+| Structure | TEDS, MHS, Layout mAP | Layout accuracy |
+| Reading Order | ARD | Element sequencing |
+| Retrieval | Recall@k, Precision@k | RAG chunk quality |
+| Answer | F1, Exact Match | Generated answer accuracy |
 
-### 4.1 Parsing Evaluation Flow
+## 4. Key Design Decisions
 
-```
-┌─────────┐     ┌────────────┐     ┌──────────────┐     ┌───────────┐
-│ Dataset │ ──▶ │   Runner    │ ──▶ │   Adapter    │ ──▶ │  Parser   │
-│ Loader  │     │ (CLI entry) │     │ + Validation │     │ (User's)  │
-└─────────┘     └────────────┘     └──────┬───────┘     └───────────┘
-                                            │
-                                            ▼
-                                    ┌───────────────┐
-                                    │ parser_output │
-                                    │  (validated)  │
-                                    └───────┬───────┘
-                                            │
-        ┌───────────────────────────────────┼───────────────────────────┐
-        │                                   ▼                           │
-        │                          ┌──────────────┐                     │
-        │                          │ Markdown     │                     │
-        │                          │ Converter    │                     │
-        │                          └───────┬──────┘                     │
-        │                                  │                            │
-        ▼                                  ▼                            ▼
-┌─────────────┐                  ┌─────────────┐              ┌─────────────┐
-│  Text       │                  │  Structure  │              │   Order    │
-│  Metrics    │                  │  Metrics    │              │  Metrics   │
-│ (NID/BLEU)  │                  │ (TEDS/MHS)  │              │   (ARD)    │
-└──────┬──────┘                  └──────┬──────┘              └──────┬──────┘
-       │                                │                             │
-       └────────────────────────────────┼─────────────────────────────┘
-                                        ▼
-                               ┌───────────────┐
-                               │  CSV + JSON   │
-                               │   Results     │
-                               └───────────────┘
-```
+### 4.1 Why Cloud-First?
 
-### 4.2 RAG Evaluation Flow
+Local execution limits scale. Cloud deployment provides:
 
-```
-┌─────────┐     ┌────────────┐     ┌──────────────┐     ┌───────────┐
-│ Dataset │ ──▶ │   Runner    │ ──▶ │   Adapter    │ ──▶ │   RAG     │
-│ Loader  │     │ (CLI entry) │     │ + Validation │     │  System   │
-└─────────┘     └────────────┘     └──────┬───────┘     └───────────┘
-                                            │
-                                            ▼
-                                    ┌───────────────┐
-                                    │ rag_query_    │
-                                    │   output      │
-                                    │  (validated)  │
-                                    └───────┬───────┘
-                                            │
-        ┌───────────────────────────────────┼───────────────────────────┐
-        │                                   │                           │
-        ▼                                   ▼                           ▼
-┌─────────────┐                  ┌─────────────┐              ┌─────────────┐
-│  Retrieval  │                  │   Answer    │              │  Citation  │
-│  Metrics    │                  │  Metrics    │              │  Metrics   │
-│(Recall@k)   │                  │  (F1/EM)    │              │  (Prec@k)   │
-└──────┬──────┘                  └──────┬──────┘              └──────┬──────┘
-       │                                │                             │
-       └────────────────────────────────┼─────────────────────────────┘
-                                        ▼
-                               ┌───────────────┐
-                               │  CSV + JSON   │
-                               │   Results     │
-                               └───────────────┘
-```
+- **Horizontal scaling** — process thousands of documents in parallel
+- **Managed infrastructure** — no server maintenance
+- **Built-in observability** — CloudWatch, X-Ray integration
+- **Cost optimization** — spot instances for batch jobs, Lambda for sporadic usage
 
-## 5. Key Design Decisions
+### 4.2 Why Arize Phoenix?
 
-### 5.1 Why Adapter Pattern?
+Phoenix provides:
 
-**Problem:** Different parsers/RAG systems produce different output formats.
+- **LLM-specific tracing** — prompt/completion token counts, costs
+- **Visualization** — dependency graphs, latency heatmaps
+- **Local development** — run Phoenix locally, same stack as production
+- **OpenTelemetry native** — standard protocol, no vendor lock-in
 
-**Options:**
-1. Modify each system to produce our format — **invasive**
-2. Write custom metric for each system — **impractical**
-3. Adapter pattern — **chosen**
+### 4.3 Why Bedrock Anthropic?
 
-**Rationale:**
-- Zero modifications to user code
+Alternatives considered: OpenAI API, local Llama models, heuristic-only evaluation.
+
+Chosen Bedrock because:
+
+- **No API keys to manage** — IAM-based auth
+- **Regional proximity** — data stays in chosen AWS region
+- **Claude quality** — strong at citation judgment tasks
+- **Unified billing** — on AWS invoice, separate vendor
+
+### 4.4 Why Adapter Pattern?
+
+Three options considered:
+
+1. **Modify user code** — invasive, high friction
+2. **Write custom metrics per system** — unmaintainable
+3. **Adapter with schema validation** — chosen
+
+Benefits:
+- Zero user code changes
 - Single metrics implementation
-- Schema validation catches errors
+- Fail-fast on malformed output
 
-### 5.2 Why JSON Schema Contracts?
+### 4.5 Why Incremental Results?
 
-**Benefits:**
-- **Explicit documentation** — schema IS the spec
-- **Runtime validation** — catch bad data early
-- **Version management** — `schema_version` field
-- **Tooling support** — generate validators, docs
+Evaluation on large datasets takes time. Writing results incrementally:
 
-### 5.3 Why Iterator-Based Datasets?
-
-**Decision:** All loaders use `Iterator[T]` not `List[T]`.
-
-**Rationale:**
-- **Memory efficiency** — process 1 document at a time
-- **Early termination** — stop on `--limit` without loading all
-- **Incremental output** — write CSV row by row
-
-### 5.4 Why Incremental CSV Writing?
-
-**Design:** Open file once, append each result, flush immediately.
-
-**Benefits:**
-- **Progress visibility** — see results during long runs
+- **Progress visibility** — see results during run
 - **Crash recovery** — partial results preserved
-- **No memory buildup** — never accumulate all results
+- **No memory buildup** — never accumulate all results in RAM
 
-### 5.5 Why Separate `*_s` Metrics?
+## 5. Technology Stack
 
-**Observation:** Some documents don't have all element types (tables, headings).
+| Layer | Technology | Rationale |
+|-------|------------|-----------|
+| Compute | EKS / Lambda | Scale or save |
+| Storage | S3 | Durable, cheap, integrates with everything |
+| LLM | Bedrock Claude | IAM auth, regional, high quality |
+| Telemetry | Arize Phoenix + OpenTelemetry | LLM-aware, standard protocol |
+| Orchestration | AWS Step Functions (optional) | Long-running workflow coordination |
+| Container | ECR + Docker | Reproducible builds |
+| Language | Python 3.13+ | Rich ecosystem |
+| Package | uv | Fast dependency resolution |
+| Schema | JSON Schema | Explicit, toolable |
+| Validation | jsonschema | Reference implementation |
 
-**Design:** Compute metrics with and without sparse elements.
+## 6. Data Flow Summary
 
-| Metric | Includes | Use Case |
-|--------|----------|----------|
-| `nid` | All elements | Overall quality |
-| `nid_s` | Sparse excluded | Fair comparison when doc lacks tables |
+```mermaid
+flowchart LR
+    A[User: CLI Command] --> B[Cloud: Job Runner]
+    B --> C[Load Dataset from S3]
+    C --> D[For Each Document]
 
-## 6. Technology Stack
+    D --> E[Adapter: Parse / Query]
+    E --> F[Schema Validation]
+    F --> G[Metrics Calculation]
 
-| Component | Technology | Rationale |
-|-----------|------------|-----------|
-| Language | Python 3.13+ | Rich ecosystem, async support |
-| Package Manager | `uv` | Fast dependency resolution |
-| Schema | JSON Schema | Standard, tooling support |
-| Validation | `jsonschema` | Reference implementation |
-| CLI | `argparse` | Built-in, sufficient |
-| CSV Output | `csv` module | Incremental writes |
-| Metrics | `sacrebleu`, `rapidfuzz`, `apted` | Optimized implementations |
-| Vector Store | `chromadb` (stub only) | Local, embeddable |
-| LLM | OpenAI, Anthropic (stub only) | RAG evaluation |
+    E --> H[Phoenix: Send Trace]
+    G --> H
 
-## 7. Extensibility Points
+    D --> I[After All Documents]
+    G --> J[Write CSV to S3]
+    I --> K[Generate Summary]
+    K --> L[Notify User: Results URL]
 
-### 7.1 Adding a New Parser
-
-```python
-# 1. Implement parse function
-def my_parser(pdf_path: Path) -> dict:
-    return {...}
-
-# 2. Create adapter
-adapter = ParserAdapter(my_parser)
-
-# 3. Run evaluation
-output = adapter.parse(pdf_path)  # Auto-validated
+    style B fill:#e8f5e9
+    style H fill:#fff3e0
+    style L fill:#e1f5fe
 ```
 
-### 7.2 Adding a New Dataset
+## 7. Deployment Models
 
-```python
-# 1. Create loader in datasets/
-def load_my_dataset(root: Path) -> Iterator[tuple]:
-    for item in dataset:
-        yield (query_id, doc_path, ground_truth)
+### 7.1 Development
 
-# 2. Register in datasets/__init__.py
-__all__ = ["load_my_dataset", ...]
+- Run locally: `uv run eval-parsing`
+- Phoenix sidecar: `docker run -p 6006:6006 arizephoenix/phoenix`
+- Traces to local Phoenix, results to local `results/`
 
-# 3. Add to CLI choices
-parser.add_argument("--dataset", choices=[..., "my_dataset"])
-```
+### 7.2 Production (EKS)
 
-### 7.3 Adding a New Metric
+- Deploy container to EKS cluster
+- Horizontal Pod Autoscaler scales based on queue depth
+- S3 for datasets and results
+- Cloud-hosted Phoenix (or EKS deployment)
+- CloudWatch for metrics and alerts
 
-```python
-# 1. Implement in metrics/parsing/
-def my_metric(gold: str, pred: str) -> float:
-    ...
+### 7.3 Serverless (Lambda)
 
-# 2. Import in runner
-from eval_harness.metrics.parsing import my_metric
-
-# 3. Add to CSV columns and calculation
-```
+- Single Lambda function handles eval request
+- S3 event trigger for new documents
+- State stored in S3, DynamoDB for job tracking
+- Pay-per-invocation, no idle costs
 
 ## 8. Security and Privacy
 
-### 8.1 Local-Only Design
+### 8.1 Data Residency
 
-**Principle:** No data leaves user's machine.
+All processing in chosen AWS region. No data crosses regions unless explicitly configured.
 
-**Enforcement:**
-- No telemetry
-- No cloud dependencies (except user-provided API keys)
-- Dataset loaders read from local filesystem
+### 8.2 IAM-Based Auth
 
-### 8.2 API Key Handling
+No API keys stored. Bedrock access via IAM roles. S3 access via IAM policies.
 
-**Pattern:**
-- Read from `.env` file
-- Pass via environment variables
-- Never log or include in results
+### 8.3 Network Isolation
 
-## 9. Performance Considerations
+VPC configuration options:
+- Public endpoints for development
+- VPC endpoints for production (no internet gateway)
+- PrivateLink for S3 and Bedrock access
 
-| Aspect | Target | Strategy |
-|--------|--------|----------|
-| Parsing | ~250ms/doc | Cached models, lazy loading |
-| RAG | ~2-3s/query | Vector index, batch embedding |
-| Memory | <2GB baseline | Iterator pattern, streaming |
-| Disk | Incremental | Append-only CSV writes |
+### 8.4 Audit Logging
+
+CloudTrail logs all API calls. X-Ray traces request paths. Phoenix maintains trace history.
+
+## 9. Extensibility
+
+### 9.1 Add Custom Parser
+
+Write your parse function. Wrap in adapter. Adapter handles validation and telemetry.
+
+### 9.2 Add Custom RAG System
+
+Write your query function. Wrap in adapter. Adapter handles validation and telemetry.
+
+### 9.3 Add New Dataset
+
+Implement loader following iterator pattern. Register in CLI. No framework changes needed.
 
 ## 10. Related Documents
 
-- [002-Data-Flow-Detailed](002-data-flow-detailed.md)
-- [003-Schema-Design](003-schema-design.md)
-- [004-Metrics-Reference](004-metrics-reference.md)
-- [005-Adapter-Implementation](005-adapter-implementation.md)
+- [002-Data-Flow-Detailed](002-data-flow-detailed.md) — Step-by-step execution flow
+- [003-Schema-Design](003-schema-design.md) — Data contracts and validation
+- [004-Metrics-Reference](004-metrics-reference.md) — All metrics explained
+- [005-Adapter-Implementation](005-adapter-implementation.md) — Integration guide

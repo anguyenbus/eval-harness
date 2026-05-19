@@ -6,215 +6,140 @@
 
 ## 1. Parsing Metrics
 
-### 1.1 Text Similarity Metrics
+Metrics for evaluating document parsing quality. Each measures a different aspect of extraction accuracy.
 
-#### NID (Normalized Indel Distance)
+### 1.1 Text Similarity
 
-**Purpose:** Measure text similarity through insertions/deletions.
+**NID (Normalized Indel Distance)**
 
-**Formula:**
-```
-NID = 1 - (insertions + deletions) / (|gold| + |pred|)
-```
+Measures text similarity by counting insertions and deletions needed to transform gold text into predicted text.
 
-**Range:** [0, 1] where 1 = perfect match
+- **Range**: 0 to 1, where 1 is perfect match
+- **Variants**:
+  - `nid`: includes all elements
+  - `nid_s`: excludes sparse elements (tables, equations) for fairer comparison
+- **Use case**: Overall text extraction quality
 
-**Variants:**
-- `nid`: All elements included
-- `nid_s`: Sparse elements (tables, equations) excluded
+**BLEU Score**
 
-**Use Case:** Overall text extraction quality.
+Measures n-gram overlap between gold and predicted text. Originally from machine translation.
 
-**Implementation:** `rapidfuzz.distance.Levenshtein`
+- **Range**: 0 to 1, where 1 is perfect match
+- **Use case**: Translation-style text quality assessment
 
-#### BLEU Score
+**METEOR Score**
 
-**Purpose:** N-gram overlap between gold and predicted text.
+Harmonic mean of precision and recall with stemming. More forgiving than BLEU for word order variations.
 
-**Formula:**
-```
-BLEU = BP * exp(sum(wn * log(pn)))
-```
-where BP = brevity penalty, pn = precision for n-grams
+- **Range**: 0 to 1, where 1 is perfect match
+- **Use case**: When word order matters less than content
 
-**Range:** [0, 1] where 1 = perfect match
+### 1.2 Structure
 
-**Use Case:** Machine translation-style text quality.
+**TEDS (Tree Edit Distance Similarity)**
 
-**Implementation:** `sacrebleu` (direct import, 100x faster than HF)
+Measures table structure similarity by counting edits needed to transform gold table tree into predicted table tree.
 
-#### METEOR Score
+- **Range**: 0 to 1, where 1 is identical structure
+- **Variants**:
+  - `teds`: includes all tables
+  - `teds_s`: excludes non-table elements
+- **Use case**: Table extraction quality
 
-**Purpose:** Harmonic mean of precision/recall with stemming.
+**MHS (Markdown Hierarchical Similarity)**
 
-**Range:** [0, 1] where 1 = perfect match
+Measures heading structure similarity by comparing heading hierarchies.
 
-**Use Case:** More forgiving than BLEU for word order variations.
+- **Range**: 0 to 1, where 1 is identical heading hierarchy
+- **Variants**:
+  - `mhs`: includes all elements
+  - `mhs_s`: excludes non-heading elements
+- **Use case**: Document structure preservation
 
-**Implementation:** `nltk.meteor_score`
+**Layout mAP**
 
-### 1.2 Structure Metrics
+Mean Average Precision for bounding box detection. Standard COCO metric adapted for document layout.
 
-#### TEDS (Tree Edit Distance Similarity)
+- **Range**: 0 to 1, where 1 is perfect localization
+- **Use case**: Layout detection accuracy
 
-**Purpose:** Measure table structure similarity.
+### 1.3 Reading Order
 
-**Formula:**
-```
-TEDS = 1 - (edit_distance(T1, T2) / (|T1| + |T2|))
-```
+**ARD (Average Rank Distance)**
 
-**Range:** [0, 1] where 1 = identical structure
+Measures how far elements are from their correct reading order position.
 
-**Variants:**
-- `teds`: All tables included
-- `teds_s`: Non-table elements excluded
-
-**Use Case:** Table extraction quality.
-
-**Implementation:** `apted` (Approximate Tree Edit Distance)
-
-#### MHS (Markdown Hierarchical Similarity)
-
-**Purpose:** Measure heading structure similarity.
-
-**Formula:**
-```
-MHS = 2 * |intersection| / (|gold_headings| + |pred_headings|)
-```
-
-**Range:** [0, 1] where 1 = identical heading hierarchy
-
-**Variants:**
-- `mhs`: All elements included
-- `mhs_s`: Non-heading elements excluded
-
-**Use Case:** Document structure preservation.
-
-#### Layout mAP
-
-**Purpose:** Mean Average Precision for bounding box detection.
-
-**Formula:** Standard COCO mAP calculation
-
-**Range:** [0, 1] where 1 = perfect localization
-
-**Use Case:** Layout detection accuracy.
-
-**Implementation:** `torchmetrics.detection.mean_ap`
-
-### 1.3 Reading Order Metrics
-
-#### ARD (Average Rank Distance)
-
-**Purpose:** Measure element order displacement.
-
-**Formula:**
-```
-ARD = (1/n) * Σ(|position_gold(e) - position_pred(e)|)
-```
-
-**Range:** [0, ∞) where 0 = perfect order
-
-**Use Case:** Reading order preservation.
-
-**Implementation:** Custom rank comparison
+- **Range**: 0 to infinity, where 0 is perfect order
+- **Use case**: Reading order preservation
 
 ## 2. RAG Metrics
 
-### 2.1 Retrieval Metrics
+Metrics for evaluating retrieval-augmented generation systems.
 
-#### Recall@k
+### 2.1 Retrieval Quality
 
-**Purpose:** Did we retrieve any relevant evidence?
+**Recall@k**
 
-**Formula:**
-```
-Recall@k = 1 if any retrieved chunk overlaps gold spans else 0
-```
+Binary metric: did the system retrieve any relevant evidence?
 
-**Range:** [0, 1] where 1 = found relevant evidence
+- **Range**: 0 or 1
+- **Calculation**: 1 if any retrieved chunk overlaps gold evidence spans, else 0
+- **Use case**: Evidence retrieval success
 
-**Use Case:** Evidence retrieval success.
+**Precision@k**
 
-#### Precision@k
+What fraction of retrieved chunks were actually relevant?
 
-**Purpose:** How precise was retrieval?
+- **Range**: 0 to 1
+- **Calculation**: relevant chunks divided by k (number retrieved)
+- **Use case**: Retrieval precision assessment
 
-**Formula:**
-```
-Precision@k = relevant_chunks / k
-```
+### 2.2 Answer Quality
 
-**Range:** [0, 1] where 1 = all chunks relevant
+**F1 Score**
 
-**Use Case:** Retrieval precision.
+Token-level harmonic mean of precision and recall for answer correctness.
 
-### 2.2 Answer Quality Metrics
+- **Range**: 0 to 1, where 1 is perfect token match
+- **Use case**: Answer completeness assessment
 
-#### F1 Score
+**Exact Match**
 
-**Purpose:** Token-level answer quality.
+Strict binary metric: exact string match between predicted and gold answer.
 
-**Formula:**
-```
-F1 = 2 * precision * recall / (precision + recall)
-```
+- **Range**: 0 or 1
+- **Use case**: Strict correctness requirement
 
-**Range:** [0, 1] where 1 = perfect token match
+### 2.3 Citation Quality
 
-**Use Case:** Answer completeness.
+**Answer Supported**
 
-#### Exact Match
+Does the answer actually cite evidence from retrieved context? Judged by LLM (via Bedrock Claude) or heuristic.
 
-**Purpose:** Strict string matching.
+- **Range**: true or false
+- **Use case**: Groundedness verification
 
-**Formula:**
-```
-EM = 1 if pred == gold else 0
-```
+**Citation Precision**
 
-**Range:** {0, 1}
+What fraction of citations are valid (actually support the claim)?
 
-**Use Case:** Strict correctness.
+- **Range**: 0 to 1, where 1 means all citations are valid
+- **Calculation**: valid citations divided by total citations
+- **Use case**: Citation accuracy assessment
 
-### 2.3 Citation Metrics
+### 2.4 Performance
 
-#### Answer Supported
+**Latency Breakdown**
 
-**Purpose:** Does answer cite evidence?
+Three timing measurements for performance profiling:
 
-**Range:** Boolean (true/false)
-
-**Use Case:** LLM-as-judge or heuristic check.
-
-#### Citation Precision
-
-**Purpose:** Are citations valid?
-
-**Formula:**
-```
-CitationPrecision = valid_citations / total_citations
-```
-
-**Range:** [0, 1] where 1 = all citations valid
-
-**Use Case:** Citation accuracy.
-
-### 2.4 Performance Metrics
-
-#### Latency
-
-**Components:**
-- `retrieval_ms`: Time to retrieve chunks
-- `generation_ms`: Time to generate answer
-- `total_ms`: End-to-end time
-
-**Use Case:** Performance profiling.
+- `retrieval_ms`: time to retrieve chunks
+- `generation_ms`: time to generate answer
+- `total_ms`: end-to-end latency
 
 ## 3. Metric Selection Guide
 
-### 3.1 For Parsing Evaluation
+### 3.1 Parsing Evaluation
 
 | Goal | Primary Metrics | Secondary Metrics |
 |------|-----------------|-------------------|
@@ -224,7 +149,7 @@ CitationPrecision = valid_citations / total_citations
 | Reading order | ARD | NID |
 | Layout detection | Layout mAP | TEDS |
 
-### 3.2 For RAG Evaluation
+### 3.2 RAG Evaluation
 
 | Goal | Primary Metrics | Secondary Metrics |
 |------|-----------------|-------------------|
@@ -248,56 +173,25 @@ flowchart TD
     G --> H
 ```
 
-## 5. Implementation Details
+## 5. How Metrics Work
 
-### 5.1 NID Implementation
+### 5.1 NID Calculation
 
-```python
-from rapidfuzz.distance import Levenshtein
+Count insertions and deletions to transform gold text into predicted text. Divide by total length. Subtract from 1.
 
-def calculate_nid(gold: str, pred: str) -> float:
-    distance = Levenshtein.distance(gold, pred)
-    total_len = len(gold) + len(pred)
-    if total_len == 0:
-        return 1.0
-    return 1.0 - (distance / total_len)
-```
+Higher values mean fewer edits needed (better).
 
-### 5.2 TEDS Implementation
+### 5.2 TEDS Calculation
 
-```python
-from apted import APTED
-from apted.helpers import Tree
+Compute tree edit distance between gold and predicted table structures. Divide by total tree size. Subtract from 1.
 
-def calculate_teds(gold_tree: Tree, pred_tree: Tree) -> float:
-    distance = APTED(gold_tree, pred_tree).compute_edit_distance()
-    total_size = len(gold_tree) + len(pred_tree)
-    if total_size == 0:
-        return 1.0
-    return 1.0 - (distance / total_size)
-```
+Higher values mean more similar table structures (better).
 
-### 5.3 Recall@k Implementation
+### 5.3 Recall@k Calculation
 
-```python
-def calculate_recall_at_k(
-    gold_spans: list[list[int]],
-    retrieved_chunks: list[dict],
-) -> float:
-    for chunk in retrieved_chunks:
-        chunk_span = chunk.get("char_span", [])
-        if len(chunk_span) != 2:
-            continue
-        chunk_start, chunk_end = chunk_span
-        
-        for gold_start, gold_end in gold_spans:
-            overlap_start = max(chunk_start, gold_start)
-            overlap_end = min(chunk_end, gold_end)
-            
-            if overlap_start < overlap_end:
-                return 1.0  # Found relevant evidence
-    return 0.0
-```
+Check each retrieved chunk's character span against gold evidence spans. If any overlap, recall is 1.
+
+Binary metric: either found evidence or didn't.
 
 ## 6. Related Documents
 
