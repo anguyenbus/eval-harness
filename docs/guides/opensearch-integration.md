@@ -28,7 +28,7 @@ This guide shows how to integrate an OpenSearch-backed RAG system for evaluation
 - OpenSearch cluster (AWS OpenSearch Service or self-hosted)
 - Existing vector index with embeddings
 - Python 3.13+
-- Dependencies: `pip install -r requirements.txt` (eval-harness), `opensearch-py` (your code)
+- Dependencies: `uv sync` (eval-harness), `opensearch-py` (your code)
 
 ## Step-by-Step Integration
 
@@ -294,14 +294,14 @@ if __name__ == "__main__":
 ### Step 4: Run Evaluation
 
 ```bash
-python my_eval.py
+uv run python my_eval.py
 ```
 
 Or use the CLI if you've registered your adapter:
 
 ```bash
 # (Advanced) Add your adapter to run_rag_eval.py --rag option
-eval-rag --dataset legalbench_rag --slice nano --rag opensearch
+uv run eval-rag --dataset legalbench_rag --slice nano --rag opensearch
 ```
 
 ## Configuration Patterns

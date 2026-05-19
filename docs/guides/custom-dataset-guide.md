@@ -13,7 +13,7 @@ uv sync
 # 2. Create dataset loader (~100 lines)
 # 3. Create adapter for your parser (~50 lines)
 # 4. Run evaluation
-eval-parsing --dataset your_dataset --parser your_parser
+uv run eval-parsing --dataset your_dataset --parser your_parser
 ```
 
 ## Step 1: Understand Your Data Format
@@ -222,10 +222,10 @@ datasets:
 
 ```bash
 # Test with limit
-eval-parsing --dataset your_dataset --parser your_parser --limit 10
+uv run eval-parsing --dataset your_dataset --parser your_parser --limit 10
 
 # Full evaluation
-eval-parsing --dataset your_dataset --parser your_parser
+uv run eval-parsing --dataset your_dataset --parser your_parser
 ```
 
 ## Common Scenarios

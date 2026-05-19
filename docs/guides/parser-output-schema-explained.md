@@ -331,8 +331,8 @@ Because all data flows through the same schema:
 
 ```bash
 # Evaluate same parser on different benchmarks
-eval-parsing --dataset omnidocbench --parser my_adapter
-eval-parsing --dataset dp_bench --parser my_adapter
+uv run eval-parsing --dataset omnidocbench --parser my_adapter
+uv run eval-parsing --dataset dp_bench --parser my_adapter
 
 # Results use same metrics, same scale
 ```
@@ -427,7 +427,7 @@ cp my_adapter.py src/eval_harness/stubs/my_parser.py
 ```bash
 # Keep adapter in your project
 # Pass module path to --parser argument (requires CLI extension)
-eval-parsing --dataset my_dataset --parser myproject.adapters.my_adapter
+uv run eval-parsing --dataset my_dataset --parser myproject.adapters.my_adapter
 ```
 
 ### CLI Integration Template

@@ -224,9 +224,7 @@ datasets:
 ```
 .
 ├── pyproject.toml          # Package configuration
-├── requirements.txt        # Dependencies for pip/venv
-├── requirements-dev.txt    # Dev dependencies
-├── setup_venv.sh          # Automated setup script
+├── uv.lock                 # Dependency lock file
 ├── eval_config.yaml        # Dataset paths and model settings
 ├── README.md
 │
@@ -358,7 +356,6 @@ No data migration required — just add an adapter wrapper.
 
 ## Documentation
 
-- [VENV_SETUP.md](VENV_SETUP.md) - Detailed venv setup guide
 - [OpenSearch Integration Guide](docs/guides/opensearch-integration.md) - Complete walkthrough for OpenSearch users
 - [Parser Output Schema Explained](docs/guides/parser-output-schema-explained.md) - Why the universal schema exists
 - [Schema Alignment Guide](docs/guides/schema-alignment-guide.md) - OmniDocBench → eval-harness mapping
