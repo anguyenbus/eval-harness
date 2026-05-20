@@ -1,9 +1,5 @@
 # Schema Design
 
-**Status:** Proposed
-**Author:** Eval-Harness Team
-**Date:** 2025-01-19
-
 ## 1. Overview
 
 Eval-Harness uses JSON Schema contracts to define data interfaces. This ensures:

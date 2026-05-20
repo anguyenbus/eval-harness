@@ -1,9 +1,5 @@
 # Data Flow Detailed
 
-**Status:** Proposed
-**Author:** Eval-Harness Team
-**Date:** 2025-01-19
-
 ## 1. Parsing Evaluation Flow
 
 ### 1.1 Sequence Diagram
@@ -11,41 +7,52 @@
 ```mermaid
 sequenceDiagram
     participant CLI as CLI
-    participant Runner as Cloud Runner
+    participant Orch as Job Orchestrator
+    participant Worker as EvalWorker
     participant Adapter as ParserAdapter
     participant Parser as User Parser
     participant Validator as Schema Validator
     participant Metrics as Metrics
     participant Phoenix as Arize Phoenix
     participant S3 as S3 Storage
+    participant DB as DynamoDB
 
-    CLI->>Runner: eval-parsing --dataset --parser
-    Runner->>Runner: load_config()
-    Runner->>S3: load_dataset()
-    S3-->>Runner: yield item
+    CLI->>Orch: eval-parsing --dataset --parser
+    Orch->>DB: create_job_record()
+    Orch-->>CLI: job_id + status_url
 
-    loop For each item in dataset
-        Runner->>Phoenix: start_trace(doc_id)
-        Runner->>Adapter: adapter.parse(pdf_path)
-        Adapter->>Parser: parse(pdf_path)
-        Parser-->>Adapter: raw_output
-        Adapter->>Validator: validate(raw_output, schema)
-        Validator-->>Adapter: validated_output
-        Adapter-->>Runner: validated_output
+    par Spawn workers
+        Orch->>Worker: assign_document_batch()
+        Worker->>S3: load_dataset()
+        S3-->>Worker: yield item
 
-        Runner->>Phoenix: span_parse_complete
-        Runner->>Metrics: to_markdown(output)
-        Metrics-->>Runner: markdown
+        loop For each item in batch
+            Worker->>Phoenix: start_trace(doc_id)
+            Worker->>Adapter: adapter.parse(pdf_path)
+            Adapter->>Parser: parse(pdf_path)
+            Parser-->>Adapter: raw_output
+            Adapter->>Validator: validate(raw_output, schema)
+            Validator-->>Adapter: validated_output
+            Adapter-->>Worker: validated_output
 
-        Runner->>Metrics: calculate_all_metrics()
-        Metrics-->>Runner: scores
+            Worker->>Phoenix: span_parse_complete
+            Worker->>Metrics: to_markdown(output)
+            Metrics-->>Worker: markdown
 
-        Runner->>Phoenix: span_metrics_complete
-        Runner->>S3: write_csv_row()
-        Runner->>Phoenix: end_trace()
+            Worker->>Metrics: calculate_all_metrics()
+            Metrics-->>Worker: scores
+
+            Worker->>Phoenix: span_metrics_complete
+            Worker->>S3: write_csv_row()
+            Worker->>DB: update_progress(doc_id)
+            Worker->>Phoenix: end_trace()
+        end
+
+        Worker-->>Orch: batch_complete
     end
 
-    Runner-->>CLI: summary + S3 URL
+    Orch->>DB: mark_job_complete()
+    Orch-->>CLI: summary + S3 URL
 ```
 
 ### 1.2 Data Transformations
@@ -89,47 +96,59 @@ For each document, Phoenix receives:
 ```mermaid
 sequenceDiagram
     participant CLI as CLI
-    participant Runner as Cloud Runner
+    participant Orch as Job Orchestrator
+    participant Worker as EvalWorker
     participant Adapter as RagAdapter
     participant RAG as User RAG System
     participant Metrics as Metrics
     participant Bedrock as Amazon Bedrock
     participant Phoenix as Arize Phoenix
     participant S3 as S3 Storage
+    participant DB as DynamoDB
 
-    CLI->>Runner: eval-rag --dataset --slice
-    Runner->>S3: load_dataset()
-    S3-->>Runner: yield query
+    CLI->>Orch: eval-rag --dataset --slice
+    Orch->>DB: create_job_record()
+    Orch-->>CLI: job_id + status_url
 
-    loop For each query in dataset
-        Runner->>Phoenix: start_trace(query_id)
-        Runner->>Adapter: adapter.query(question, corpus_dir)
+    par Spawn workers
+        Orch->>Worker: assign_query_batch()
+        Worker->>S3: load_dataset()
+        S3-->>Worker: yield query
 
-        Adapter->>RAG: query(question, corpus_dir)
-        RAG->>RAG: embed(question)
-        RAG->>RAG: retrieve(top_k)
-        RAG->>RAG: generate(context)
-        RAG-->>Adapter: raw_output
+        loop For each query in batch
+            Worker->>Phoenix: start_trace(query_id)
+            Worker->>Adapter: adapter.query(question, corpus_dir)
 
-        Adapter->>Adapter: validate(raw_output, schema)
-        Adapter-->>Runner: validated_output
-        Runner->>Phoenix: span_retrieval_complete
+            Adapter->>RAG: query(question, corpus_dir)
+            RAG->>RAG: embed(question)
+            RAG->>RAG: retrieve(top_k)
+            RAG->>RAG: generate(context)
+            RAG-->>Adapter: raw_output
 
-        Runner->>Metrics: calculate_recall()
-        Metrics-->>Runner: recall_score
+            Adapter->>Adapter: validate(raw_output, schema)
+            Adapter-->>Worker: validated_output
+            Worker->>Phoenix: span_retrieval_complete
 
-        Runner->>Metrics: calculate_f1()
-        Metrics-->>Runner: f1_score
+            Worker->>Metrics: calculate_recall()
+            Metrics-->>Worker: recall_score
 
-        Runner->>Bedrock: llm_as_judge(answer, context)
-        Bedrock-->>Runner: judgment
-        Runner->>Phoenix: span_llm_judgment
+            Worker->>Metrics: calculate_f1()
+            Metrics-->>Worker: f1_score
 
-        Runner->>S3: write_csv_row()
-        Runner->>Phoenix: end_trace()
+            Worker->>Bedrock: llm_as_judge(answer, context)
+            Bedrock-->>Worker: judgment
+            Worker->>Phoenix: span_llm_judgment
+
+            Worker->>S3: write_csv_row()
+            Worker->>DB: update_progress(query_id)
+            Worker->>Phoenix: end_trace()
+        end
+
+        Worker-->>Orch: batch_complete
     end
 
-    Runner-->>CLI: summary + S3 URL
+    Orch->>DB: mark_job_complete()
+    Orch-->>CLI: summary + S3 URL
 ```
 
 ### 2.2 Data Transformations
@@ -169,25 +188,35 @@ For each query, Phoenix receives:
 
 ## 3. Cloud Execution Flow
 
-### 3.1 Job Submission
+### 3.1 Component Responsibilities
+
+| Component | Responsibility | Technology |
+|-----------|---------------|------------|
+| **Job Orchestrator** | Job lifecycle, worker coordination, progress tracking | AWS Step Functions / custom |
+| **EvalWorker** | Document processing, metrics calculation, telemetry | EKS Pod / Lambda |
+| **DynamoDB** | Job state, progress tracking, checkpoint recovery | DynamoDB |
+| **S3** | Dataset storage, results output, checkpoint files | S3 |
+| **Phoenix** | Trace collection, observability UI | Arize Phoenix |
+
+### 3.2 Job Flow
 
 ```mermaid
 flowchart LR
     A[User submits job] --> B{Deployment mode}
     B -->|Local dev| C[Run locally]
-    B -->|EKS| D[Submit to Job Queue]
+    B -->|EKS| D[Orchestrator: create job]
     B -->|Lambda| E[Invoke Lambda]
 
-    D --> F[Worker Pod picks up job]
-    F --> G[Pull dataset from S3]
-    G --> H[Process documents]
+    D --> F[Spawn worker pods]
+    F --> G[Workers process in parallel]
+    G --> H[Write results to S3]
 
-    E --> I[Load dataset from S3]
+    E --> I[Lambda loads dataset]
     I --> H
 
-    H --> J[Write results to S3]
-    J --> K[Update job status]
-    K --> L[Notify user complete]
+    H --> J[Update DynamoDB]
+    J --> K[Orchestrator: complete job]
+    K --> L[Notify user: results URL]
 
     style C fill:#e8f5e9
     style F fill:#fff3e0

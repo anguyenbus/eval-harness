@@ -1,9 +1,5 @@
 # Adapter Implementation Guide
 
-**Status:** Proposed
-**Author:** Eval-Harness Team
-**Date:** 2025-01-19
-
 ## 1. Purpose
 
 This guide explains how to integrate your custom parser or RAG system with eval-harness using adapters.
