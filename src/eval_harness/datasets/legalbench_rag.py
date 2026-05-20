@@ -54,6 +54,7 @@ def load_legalbench_rag(
     Raises:
         FileNotFoundError: If root directory doesn't exist.
         ValueError: If slice is not "nano", "mini" or "full".
+
     """
     if not root.exists():
         raise FileNotFoundError(f"LegalBench-RAG directory not found: {root}")
@@ -107,5 +108,7 @@ def load_legalbench_rag(
             # Slice limits: nano=12 per corpus (48 total), mini=194 per corpus (776 total)
             queries_per_corpus = {"nano": 12, "mini": 194}.get(slice, None)
 
-            if queries_per_corpus and query_count >= queries_per_corpus * (list(BENCHMARK_FILES.keys()).index(corpus_name) + 1):
+            if queries_per_corpus and query_count >= queries_per_corpus * (
+                list(BENCHMARK_FILES.keys()).index(corpus_name) + 1
+            ):
                 break

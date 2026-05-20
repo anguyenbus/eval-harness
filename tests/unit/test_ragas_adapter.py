@@ -2,8 +2,6 @@
 
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from eval_harness.adapters.ragas_adapter import (
     RagasEvaluator,
     transform_to_ragas_sample,
@@ -111,10 +109,26 @@ class TestRagasEvaluator:
         evaluator = RagasEvaluator(llm_provider="openai", judge_model="gpt-4o")
 
         # Mock the metric evaluation
-        with patch.object(evaluator._metrics["faithfulness"], "score", return_value=MagicMock(faithfulness=0.95)):
-            with patch.object(evaluator._metrics["context_precision"], "score", return_value=MagicMock(context_precision=0.85)):
-                with patch.object(evaluator._metrics["context_recall"], "score", return_value=MagicMock(context_recall=0.90)):
-                    with patch.object(evaluator._metrics["answer_relevancy"], "score", return_value=MagicMock(answer_relevancy=0.88)):
+        with patch.object(
+            evaluator._metrics["faithfulness"],
+            "score",
+            return_value=MagicMock(faithfulness=0.95),
+        ):
+            with patch.object(
+                evaluator._metrics["context_precision"],
+                "score",
+                return_value=MagicMock(context_precision=0.85),
+            ):
+                with patch.object(
+                    evaluator._metrics["context_recall"],
+                    "score",
+                    return_value=MagicMock(context_recall=0.90),
+                ):
+                    with patch.object(
+                        evaluator._metrics["answer_relevancy"],
+                        "score",
+                        return_value=MagicMock(answer_relevancy=0.88),
+                    ):
                         rag_output = {
                             "query": {"text": "Question?"},
                             "answer": {"text": "Answer", "citations": []},
@@ -122,7 +136,9 @@ class TestRagasEvaluator:
                         }
                         reference_answer = "Reference"
 
-                        results = evaluator.compute_metrics(rag_output, reference_answer)
+                        results = evaluator.compute_metrics(
+                            rag_output, reference_answer
+                        )
 
                         assert "faithfulness" in results
                         assert "context_precision" in results
@@ -140,7 +156,9 @@ class TestRagasEvaluator:
         mock_score = MagicMock()
         mock_score.faithfulness = 0.95
 
-        with patch.object(evaluator._metrics["faithfulness"], "score", return_value=mock_score):
+        with patch.object(
+            evaluator._metrics["faithfulness"], "score", return_value=mock_score
+        ):
             rag_output = {
                 "query": {"text": "Question?"},
                 "answer": {"text": "Answer", "citations": []},
@@ -157,6 +175,8 @@ class TestRagasEvaluator:
         monkeypatch.setenv("OPENAI_API_KEY", "test-key")
         monkeypatch.setenv("SSL_CERT_FILE", "")
 
-        evaluator = RagasEvaluator(llm_provider="openai", judge_model="gpt-4o", track_costs=True)
+        evaluator = RagasEvaluator(
+            llm_provider="openai", judge_model="gpt-4o", track_costs=True
+        )
 
         assert evaluator is not None

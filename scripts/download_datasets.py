@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Download public benchmark datasets.
+"""
+Download public benchmark datasets.
 
 Downloads OmniDocBench (with English filtering) and DP-Bench from HuggingFace.
 Records pinned versions and SHA-256 hashes in data/MANIFEST.yaml for verification.
@@ -19,10 +20,8 @@ import yaml
 
 try:
     from huggingface_hub import snapshot_download
-except ImportError:
-    raise ImportError(
-        "huggingface_hub required. Install: uv add huggingface_hub"
-    )
+except ImportError as err:
+    raise ImportError("huggingface_hub required. Install: uv add huggingface_hub") from err
 
 # OmniDocBench filter settings
 RELEVANT_DOC_TYPES = {
@@ -54,13 +53,15 @@ DATASETS = {
 
 
 def compute_sha256(file_path: Path) -> str:
-    """Compute SHA-256 hash of a file.
+    """
+    Compute SHA-256 hash of a file.
 
     Args:
         file_path: Path to file.
 
     Returns:
         Hex-encoded SHA-256 hash.
+
     """
     sha256 = hashlib.sha256()
     with open(file_path, "rb") as f:
@@ -70,7 +71,8 @@ def compute_sha256(file_path: Path) -> str:
 
 
 def verify_hash(file_path: Path, expected_hash: str) -> bool:
-    """Verify that file matches expected SHA-256 hash.
+    """
+    Verify that file matches expected SHA-256 hash.
 
     Args:
         file_path: Path to file to verify.
@@ -78,6 +80,7 @@ def verify_hash(file_path: Path, expected_hash: str) -> bool:
 
     Returns:
         True if hash matches, False otherwise.
+
     """
     if not file_path.exists():
         return False
@@ -87,13 +90,15 @@ def verify_hash(file_path: Path, expected_hash: str) -> bool:
 
 
 def get_manifest(manifest_path: Path) -> dict | None:
-    """Load existing manifest or return None if not exists.
+    """
+    Load existing manifest or return None if not exists.
 
     Args:
         manifest_path: Path to MANIFEST.yaml.
 
     Returns:
         Manifest dict or None.
+
     """
     if not manifest_path.exists():
         return None
@@ -102,14 +107,18 @@ def get_manifest(manifest_path: Path) -> dict | None:
         return yaml.safe_load(f)
 
 
-def update_manifest(manifest_path: Path, dataset_name: str, version: str, sha256: str) -> None:
-    """Update manifest with dataset info.
+def update_manifest(
+    manifest_path: Path, dataset_name: str, version: str, sha256: str
+) -> None:
+    """
+    Update manifest with dataset info.
 
     Args:
         manifest_path: Path to MANIFEST.yaml.
         dataset_name: Name of dataset.
         version: Dataset version.
         sha256: SHA-256 hash of dataset key file.
+
     """
     manifest = get_manifest(manifest_path) or {}
     manifest[dataset_name] = {
@@ -168,11 +177,13 @@ def _filter_omnidocbench_pages(pages: list, images_dir: Path) -> Iterator[dict]:
 
 
 def download_omnidocbench(output_dir: Path, manifest_path: Path) -> None:
-    """Download OmniDocBench dataset from HuggingFace and filter to English-only.
+    """
+    Download OmniDocBench dataset from HuggingFace and filter to English-only.
 
     Args:
         output_dir: Directory to download dataset to.
         manifest_path: Path to MANIFEST.yaml for verification.
+
     """
     print("Downloading OmniDocBench from HuggingFace...")
 
@@ -228,7 +239,9 @@ def download_omnidocbench(output_dir: Path, manifest_path: Path) -> None:
 
     # Update manifest
     sha256 = compute_sha256(output_json)
-    update_manifest(manifest_path, "omnidocbench", DATASETS["omnidocbench"]["version"], sha256)
+    update_manifest(
+        manifest_path, "omnidocbench", DATASETS["omnidocbench"]["version"], sha256
+    )
 
     # Cleanup
     shutil.rmtree(temp_dir)
@@ -239,7 +252,8 @@ def download_omnidocbench(output_dir: Path, manifest_path: Path) -> None:
 
 
 def download_legalbench_rag(output_dir: Path, manifest_path: Path) -> None:
-    """Download LegalBench-RAG dataset.
+    """
+    Download LegalBench-RAG dataset.
 
     LegalBench-RAG is distributed via a Dropbox link in the GitHub repo.
     This function provides instructions for manual download.
@@ -247,8 +261,10 @@ def download_legalbench_rag(output_dir: Path, manifest_path: Path) -> None:
     Args:
         output_dir: Directory to download dataset to.
         manifest_path: Path to MANIFEST.yaml for verification.
+
     """
-    print("""
+    print(
+        """
 ==========================================
 LegalBench-RAG Download Instructions
 ==========================================
@@ -261,7 +277,9 @@ LegalBench-RAG is not available via HuggingFace. Follow these steps:
 2. Download the dataset via the Dropbox link in the README
 
 3. Extract to the following location:
-   """ + str(output_dir / "rag" / "legalbench_rag") + """
+   """
+        + str(output_dir / "rag" / "legalbench_rag")
+        + """
 
 4. Verify the directory structure:
    data/rag/legalbench_rag/
@@ -276,16 +294,21 @@ LegalBench-RAG is not available via HuggingFace. Follow these steps:
 
 For more details, see: confluence_notes/datasets-note.md
 ==========================================
-""")
-    update_manifest(manifest_path, "legalbench_rag", DATASETS["legalbench_rag"]["version"], "manual")
+"""
+    )
+    update_manifest(
+        manifest_path, "legalbench_rag", DATASETS["legalbench_rag"]["version"], "manual"
+    )
 
 
 def download_dp_bench(output_dir: Path, manifest_path: Path) -> None:
-    """Download DP-Bench dataset from HuggingFace.
+    """
+    Download DP-Bench dataset from HuggingFace.
 
     Args:
         output_dir: Directory to download dataset to.
         manifest_path: Path to MANIFEST.yaml for verification.
+
     """
     print("Downloading DP-Bench from HuggingFace...")
 
@@ -308,7 +331,9 @@ def download_dp_bench(output_dir: Path, manifest_path: Path) -> None:
         shutil.rmtree(final_dir)
     shutil.move(str(temp_dir), str(final_dir))
 
-    update_manifest(manifest_path, "dp_bench", DATASETS["dp_bench"]["version"], "verified")
+    update_manifest(
+        manifest_path, "dp_bench", DATASETS["dp_bench"]["version"], "verified"
+    )
     print(f"DP-Bench downloaded to: {final_dir}")
 
 

@@ -2,7 +2,6 @@
 
 import json
 import time
-from pathlib import Path
 
 import pytest
 import yaml
@@ -55,9 +54,9 @@ class TestParsingPipeline:
         (tmp_path / "results").mkdir()
 
         # Run parsing eval
-        from eval_harness.runners.run_parsing_eval import main
-
         import sys
+
+        from eval_harness.runners.run_parsing_eval import main
 
         original_argv = sys.argv
         sys.argv = [
@@ -81,7 +80,9 @@ class TestParsingPipeline:
 
         # Should complete successfully
         assert exc_info.value.code == 0
-        assert elapsed < 30, "Pipeline should complete in under 30 seconds for single page"
+        assert elapsed < 30, (
+            "Pipeline should complete in under 30 seconds for single page"
+        )
 
     def test_csv_output_generation(self, tmp_path):
         """Test that CSV output is generated correctly."""
@@ -120,9 +121,9 @@ class TestParsingPipeline:
         (tmp_path / "results").mkdir()
 
         # Run eval
-        from eval_harness.runners.run_parsing_eval import main
-
         import sys
+
+        from eval_harness.runners.run_parsing_eval import main
 
         original_argv = sys.argv
         sys.argv = [
@@ -163,13 +164,15 @@ class TestParsingPipeline:
         csv_path = tmp_path / "results.csv"
         import pandas as pd
 
-        df = pd.DataFrame({
-            "query_id": ["q001", "q002"],
-            "question_id": ["text_fidelity", "structure_recall"],
-            "score": [0.95, 0.80],
-            "label": ["pass", "fail"],
-            "error": ["", ""],
-        })
+        df = pd.DataFrame(
+            {
+                "query_id": ["q001", "q002"],
+                "question_id": ["text_fidelity", "structure_recall"],
+                "score": [0.95, 0.80],
+                "label": ["pass", "fail"],
+                "error": ["", ""],
+            }
+        )
         df.to_csv(csv_path, index=False)
 
         html_path = tmp_path / "summary.html"
@@ -213,7 +216,10 @@ class TestParsingPipeline:
         current_data_regression = {
             "metrics": {
                 "text_fidelity": {"score": 0.95, "severity": "major"},
-                "structure_recall": {"score": 0.80, "severity": "blocker"},  # Regressed!
+                "structure_recall": {
+                    "score": 0.80,
+                    "severity": "blocker",
+                },  # Regressed!
             }
         }
         current_path.write_text(json.dumps(current_data_regression))
@@ -268,9 +274,9 @@ class TestParsingPipeline:
         (tmp_path / "results").mkdir()
 
         # Run parsing eval
-        from eval_harness.runners.run_parsing_eval import main
-
         import sys
+
+        from eval_harness.runners.run_parsing_eval import main
 
         original_argv = sys.argv
         sys.argv = [

@@ -1,4 +1,5 @@
-"""MHS (Markdown Hierarchical Similarity) metric for heading structure evaluation.
+"""
+MHS (Markdown Hierarchical Similarity) metric for heading structure evaluation.
 
 Derived from opendataloader-bench. Measures heading hierarchy preservation
 using tree edit distance on heading/content trees.
@@ -120,7 +121,8 @@ def evaluate_heading_level(
     gt: str | None,
     pred: str | None,
 ) -> tuple[float | None, float | None]:
-    """Return (MHS, MHS-S) similarity scores in [0.0, 1.0].
+    """
+    Return (MHS, MHS-S) similarity scores in [0.0, 1.0].
 
     Args:
         gt: Ground truth markdown string.
@@ -154,7 +156,8 @@ def evaluate_heading_level(
 
 
 def mhs_score(gt: str, pred: str) -> float:
-    """Calculate MHS score (structure + heading text).
+    """
+    Calculate MHS score (structure + heading text).
 
     Args:
         gt: Ground truth markdown string.
@@ -169,7 +172,8 @@ def mhs_score(gt: str, pred: str) -> float:
 
 
 def mhs_s_score(gt: str, pred: str) -> float:
-    """Calculate MHS-S score (structure-only).
+    """
+    Calculate MHS-S score (structure-only).
 
     Args:
         gt: Ground truth markdown string.

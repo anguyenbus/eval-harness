@@ -179,6 +179,7 @@ class RagasEvaluator:
                 results["faithfulness"] = float(score_result)
             except Exception as e:
                 import sys
+
                 print(f"[ERROR] faithfulness failed: {e}", file=sys.stderr)
                 results["faithfulness"] = 0.0
 
@@ -196,6 +197,7 @@ class RagasEvaluator:
                 results["context_precision"] = float(score_result)
             except Exception as e:
                 import sys
+
                 print(f"[ERROR] context_precision failed: {e}", file=sys.stderr)
                 results["context_precision"] = 0.0
 
@@ -213,6 +215,7 @@ class RagasEvaluator:
                 results["context_recall"] = float(score_result)
             except Exception as e:
                 import sys
+
                 print(f"[ERROR] context_recall failed: {e}", file=sys.stderr)
                 results["context_recall"] = 0.0
 
@@ -229,6 +232,7 @@ class RagasEvaluator:
                 results["answer_relevancy"] = float(score_result)
             except Exception as e:
                 import sys
+
                 print(f"[ERROR] answer_relevancy failed: {e}", file=sys.stderr)
                 results["answer_relevancy"] = 0.0
 

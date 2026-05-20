@@ -132,10 +132,10 @@ def load_legal_rag_bench(
     # Import here to avoid dependency if not used
     try:
         from datasets import load_dataset as hf_load_dataset
-    except ImportError:
+    except ImportError as err:
         raise ImportError(
             "datasets library not installed. Install with: uv add datasets"
-        )
+        ) from err
 
     # Get HF token
     token = _get_hf_token()

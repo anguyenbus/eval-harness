@@ -1,4 +1,5 @@
-"""NID (Normalized Indel Distance) metric for reading order evaluation.
+"""
+NID (Normalized Indel Distance) metric for reading order evaluation.
 
 Derived from opendataloader-bench. Measures reading order similarity
 using fuzzy string matching on document text.
@@ -30,7 +31,8 @@ def evaluate_reading_order(
     gt: str,
     pred: str,
 ) -> tuple[float | None, float | None]:
-    """Evaluate reading order using NID metric.
+    """
+    Evaluate reading order using NID metric.
 
     Args:
         gt: Ground truth markdown string.
@@ -59,7 +61,8 @@ def evaluate_reading_order(
 
 
 def nid_score(gt: str, pred: str) -> float:
-    """Calculate NID score (full text similarity).
+    """
+    Calculate NID score (full text similarity).
 
     Args:
         gt: Ground truth markdown string.
@@ -74,7 +77,8 @@ def nid_score(gt: str, pred: str) -> float:
 
 
 def nid_s_score(gt: str, pred: str) -> float:
-    """Calculate NID-S score (structure-only, tables stripped).
+    """
+    Calculate NID-S score (structure-only, tables stripped).
 
     Args:
         gt: Ground truth markdown string.
@@ -90,7 +94,8 @@ def nid_s_score(gt: str, pred: str) -> float:
 
 # Legacy aliases for compatibility
 def normalized_indel_distance(predicted: list, gold: list) -> float:
-    """Legacy: Calculate edit distance between sequences.
+    """
+    Legacy: Calculate edit distance between sequences.
 
     DEPRECATED: Use nid_score() with markdown strings instead.
     This is kept for backward compatibility.

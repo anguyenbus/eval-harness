@@ -4,6 +4,7 @@ Prepare Legal RAG Bench corpus for ChromaDB ingestion.
 Downloads the corpus split from HuggingFace and exports to text files
 for the stub ChromaDB RAG implementation.
 """
+
 from __future__ import annotations
 
 import os
@@ -32,10 +33,10 @@ def prepare_corpus(
     # Import here to avoid dependency if not used
     try:
         from datasets import load_dataset
-    except ImportError:
+    except ImportError as err:
         raise ImportError(
             "datasets library not installed. Install with: uv add datasets"
-        )
+        ) from err
 
     # Create output directory
     output_dir.mkdir(parents=True, exist_ok=True)

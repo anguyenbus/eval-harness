@@ -19,7 +19,6 @@ from typing import Any, Final
 from beartype import beartype
 from beartype.typing import Dict
 from langchain_openai import ChatOpenAI
-from openai import OpenAI
 
 # Constants
 OPENAI_API_KEY_ENV: Final[str] = "OPENAI_API_KEY"
@@ -49,7 +48,9 @@ def _get_openai_api_key() -> str:
 
 
 @beartype
-def get_openai_client(model: str = DEFAULT_OPENAI_MODEL, temperature: float = DEFAULT_TEMPERATURE) -> ChatOpenAI:
+def get_openai_client(
+    model: str = DEFAULT_OPENAI_MODEL, temperature: float = DEFAULT_TEMPERATURE
+) -> ChatOpenAI:
     """
     Get OpenAI client for RAGAS evaluation.
 
@@ -95,8 +96,8 @@ def get_llm_backend(
 
     """
     if provider == "openai":
-        from ragas.llms import llm_factory
         from openai import AsyncOpenAI
+        from ragas.llms import llm_factory
 
         api_key = _get_openai_api_key()
         # Use AsyncOpenAI for async evaluation (required by RAGAS 0.4+)
@@ -108,7 +109,9 @@ def get_llm_backend(
             "Use 'openai' provider for now."
         )
     else:
-        raise ValueError(f"Unsupported provider: {provider}. Use 'openai' or 'bedrock'.")
+        raise ValueError(
+            f"Unsupported provider: {provider}. Use 'openai' or 'bedrock'."
+        )
 
 
 @beartype
@@ -145,7 +148,9 @@ def get_embeddings_backend(
             api_key=api_key,
         )
     else:
-        raise ValueError(f"Unsupported provider: {provider}. Use 'huggingface' or 'openai'.")
+        raise ValueError(
+            f"Unsupported provider: {provider}. Use 'huggingface' or 'openai'."
+        )
 
 
 @beartype

@@ -1,8 +1,5 @@
 """Tests for Legal RAG Bench dataset loader."""
 
-from collections.abc import Iterator
-from pathlib import Path
-from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -58,7 +55,10 @@ class TestGetHfToken:
         hf_dir.mkdir(parents=True)
         (hf_dir / "token").write_text("file_token_456")
 
-        with patch("eval_harness.datasets.legal_rag_bench.DEFAULT_HF_TOKEN_PATH", hf_dir / "token"):
+        with patch(
+            "eval_harness.datasets.legal_rag_bench.DEFAULT_HF_TOKEN_PATH",
+            hf_dir / "token",
+        ):
             token = _get_hf_token()
             assert token == "file_token_456"
 
@@ -70,7 +70,10 @@ class TestGetHfToken:
         hf_dir = tmp_path / ".huggingface"
         hf_dir.mkdir(parents=True)
 
-        with patch("eval_harness.datasets.legal_rag_bench.DEFAULT_HF_TOKEN_PATH", hf_dir / "token"):
+        with patch(
+            "eval_harness.datasets.legal_rag_bench.DEFAULT_HF_TOKEN_PATH",
+            hf_dir / "token",
+        ):
             token = _get_hf_token()
             assert token is None
 
@@ -98,7 +101,9 @@ class TestLegalRagBenchLoader:
         mock_dataset.__iter__.return_value = iter(mock_data)
 
         with patch("datasets.load_dataset", return_value=mock_dataset):
-            results = list(load_legal_rag_bench(tmp_path, slice="nano", force_refresh=False))
+            results = list(
+                load_legal_rag_bench(tmp_path, slice="nano", force_refresh=False)
+            )
 
             # Nano slice should have 10 questions
             assert len(results) == 10
@@ -121,7 +126,9 @@ class TestLegalRagBenchLoader:
         mock_dataset.__iter__.return_value = iter(mock_data)
 
         with patch("datasets.load_dataset", return_value=mock_dataset):
-            results = list(load_legal_rag_bench(tmp_path, slice="nano", force_refresh=False))
+            results = list(
+                load_legal_rag_bench(tmp_path, slice="nano", force_refresh=False)
+            )
 
             assert len(results) == 1
             query_id, query_text, relevant_passage_id, reference_answer = results[0]
@@ -129,7 +136,10 @@ class TestLegalRagBenchLoader:
             assert query_id == "q001"
             assert query_text == "What is the termination clause?"
             assert relevant_passage_id == "passage_123"
-            assert reference_answer == "The contract can be terminated with 30 days notice."
+            assert (
+                reference_answer
+                == "The contract can be terminated with 30 days notice."
+            )
 
     def test_iterator_pattern_works(self, tmp_path):
         """Test that loader uses iterator pattern."""
@@ -173,11 +183,15 @@ class TestLegalRagBenchLoader:
 
         with patch("datasets.load_dataset", return_value=mock_dataset):
             # Nano should give 10
-            nano_results = list(load_legal_rag_bench(tmp_path, slice="nano", force_refresh=False))
+            nano_results = list(
+                load_legal_rag_bench(tmp_path, slice="nano", force_refresh=False)
+            )
             assert len(nano_results) == 10
 
             # Mini should give 100
-            mini_results = list(load_legal_rag_bench(tmp_path, slice="mini", force_refresh=False))
+            mini_results = list(
+                load_legal_rag_bench(tmp_path, slice="mini", force_refresh=False)
+            )
             assert len(mini_results) == 100
 
     def test_cache_directory_created(self, tmp_path):

@@ -1,4 +1,5 @@
-"""Text similarity metrics for OCR and text extraction evaluation.
+"""
+Text similarity metrics for OCR and text extraction evaluation.
 
 This module implements BLEU, METEOR, character-level edit distance,
 and word-level edit distance metrics following docling-eval patterns.
@@ -23,7 +24,8 @@ _punkt_checked = False
 
 
 def _ensure_nltk_data() -> None:
-    """Ensure required NLTK data is downloaded.
+    """
+    Ensure required NLTK data is downloaded.
 
     NOTE: This function is idempotent and safe to call multiple times.
     It downloads the minimum required data for METEOR and tokenization.
@@ -48,7 +50,8 @@ def _ensure_nltk_data() -> None:
 
 @beartype
 def bleu_score(gt: str, pred: str) -> float:
-    """Calculate BLEU score between ground truth and predicted text.
+    """
+    Calculate BLEU score between ground truth and predicted text.
 
     Uses sacrebleu for fast computation (100x faster than HuggingFace evaluate wrapper).
 
@@ -88,7 +91,8 @@ def bleu_score(gt: str, pred: str) -> float:
 
 @beartype
 def meteor_score(gt: str, pred: str) -> float:
-    """Calculate METEOR score between ground truth and predicted text.
+    """
+    Calculate METEOR score between ground truth and predicted text.
 
     METEOR is based on harmonic mean of unigram precision and recall,
     with penalty for fragmentation.
@@ -135,7 +139,8 @@ def meteor_score(gt: str, pred: str) -> float:
 
 @beartype
 def char_edit_distance(gt: str, pred: str) -> float:
-    """Calculate normalized character-level edit distance.
+    """
+    Calculate normalized character-level edit distance.
 
     Uses rapidfuzz Levenshtein distance normalized by maximum length.
 
@@ -175,7 +180,8 @@ def char_edit_distance(gt: str, pred: str) -> float:
 
 @beartype
 def word_edit_distance(gt: str, pred: str) -> float:
-    """Calculate normalized word-level edit distance.
+    """
+    Calculate normalized word-level edit distance.
 
     Tokenizes text using NLTK word_tokenize, then computes
     Levenshtein distance normalized by maximum token count.

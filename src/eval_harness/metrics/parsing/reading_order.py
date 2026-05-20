@@ -1,4 +1,5 @@
-"""Reading order metric using ARD (Average Rank Distance).
+"""
+Reading order metric using ARD (Average Rank Distance).
 
 ARD measures the average displacement between predicted and gold order,
 normalized to [0.0, 1.0] range where 1.0 is perfect match.
@@ -18,7 +19,8 @@ _MIN_SCORE: Final[float] = 0.0
 
 
 def _compute_bbox_area(bbox: dict[str, Any]) -> float:
-    """Compute the area of a bounding box.
+    """
+    Compute the area of a bounding box.
 
     Args:
         bbox: Dictionary with x0, y0, x1, y1 keys.
@@ -40,7 +42,8 @@ def _compute_bbox_area(bbox: dict[str, Any]) -> float:
 
 @beartype
 def ard_score(predicted_order: list[Any], gold_order: list[Any]) -> float:
-    """Calculate ARD (Average Rank Distance) between predicted and gold order.
+    """
+    Calculate ARD (Average Rank Distance) between predicted and gold order.
 
     ARD measures the average displacement between predicted and gold positions
     for each element, normalized to [0.0, 1.0] where 1.0 is perfect match.
@@ -114,7 +117,8 @@ def ard_weighted_score(
     gold_order: list[Any],
     bboxes: list[Any],
 ) -> float:
-    """Calculate weighted ARD score using bbox area as weight.
+    """
+    Calculate weighted ARD score using bbox area as weight.
 
     The weight for each element is: weight_k = area(bbox_k) / total_area
     This gives more importance to larger elements (e.g., tables, pictures).
@@ -197,7 +201,8 @@ def ard_weighted_score(
 
 # Legacy function for backward compatibility
 def kendall_tau(predicted_order: list[Any], gold_order: list[Any]) -> float:
-    """Legacy: Calculate Kendall tau correlation.
+    """
+    Legacy: Calculate Kendall tau correlation.
 
     DEPRECATED: Use ard_score() instead.
     This function is kept for backward compatibility with existing tests.

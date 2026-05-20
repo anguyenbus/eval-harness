@@ -21,6 +21,7 @@ def parse(pdf_path: Path) -> dict[str, Any]:
 
     Returns:
         Dictionary conforming to parser_output.schema.json.
+
     """
     doc_id = pdf_path.stem
     sha256 = hashlib.sha256(pdf_path.read_bytes()).hexdigest()
@@ -34,12 +35,14 @@ def parse(pdf_path: Path) -> dict[str, Any]:
         page = reader.pages[page_no]
         # pypdf uses mediabox size (points)
         mediabox = page.mediabox
-        pages.append({
-            "page_index": page_no,
-            "width": float(mediabox.width),
-            "height": float(mediabox.height),
-            "rotation": page.rotation if hasattr(page, "rotation") else 0,
-        })
+        pages.append(
+            {
+                "page_index": page_no,
+                "width": float(mediabox.width),
+                "height": float(mediabox.height),
+                "rotation": page.rotation if hasattr(page, "rotation") else 0,
+            }
+        )
 
     # Build elements array
     elements = []
@@ -60,21 +63,23 @@ def parse(pdf_path: Path) -> dict[str, Any]:
         char_end = char_offset + len(text)
         char_offset = char_end
 
-        elements.append({
-            "element_id": f"{doc_id}_paragraph_{element_id:03d}",
-            "type": "paragraph",
-            "page_index": page_no,
-            "char_span": [char_start, char_end],
-            "text": text,
-            "content": {"kind": "text"},
-            "bbox": {
-                "x0": 72.0,  # Default margin
-                "y0": 72.0,
-                "x1": pages[page_no]["width"] - 72.0,
-                "y1": pages[page_no]["height"] - 72.0,
-            },
-            "parent_id": None,
-        })
+        elements.append(
+            {
+                "element_id": f"{doc_id}_paragraph_{element_id:03d}",
+                "type": "paragraph",
+                "page_index": page_no,
+                "char_span": [char_start, char_end],
+                "text": text,
+                "content": {"kind": "text"},
+                "bbox": {
+                    "x0": 72.0,  # Default margin
+                    "y0": 72.0,
+                    "x1": pages[page_no]["width"] - 72.0,
+                    "y1": pages[page_no]["height"] - 72.0,
+                },
+                "parent_id": None,
+            }
+        )
 
     return {
         "schema_version": "1.0.0",

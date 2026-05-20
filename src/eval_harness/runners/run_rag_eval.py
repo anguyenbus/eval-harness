@@ -10,6 +10,7 @@ It is not intended for production use.
 RAGAS LLM-judge metrics (Faithfulness, ContextPrecision, ContextRecall, AnswerRelevancy)
 are enabled by default and require OPENAI_API_KEY to be set.
 """
+
 from __future__ import annotations
 
 import csv
@@ -41,6 +42,7 @@ def load_dataset(slice_name: str, config: dict):
 
     Returns:
         Iterator over dataset items.
+
     """
     from eval_harness.datasets import load_legal_rag_bench
 
@@ -184,7 +186,7 @@ def main() -> None:
     if args.rag == "stub":
         print("NOTE: Using reference stub implementation (demonstration only)")
     if args.force_reingest:
-        print(f"Force reingest enabled")
+        print("Force reingest enabled")
     print(f"Top-k retrieval: {args.top_k}")
 
     rag_adapter = get_rag(
@@ -195,7 +197,9 @@ def main() -> None:
 
     # Setup output file for incremental writes with timestamp
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    output_file = args.output_dir / f"legal_rag_bench_{args.slice}_results_{timestamp}.csv"
+    output_file = (
+        args.output_dir / f"legal_rag_bench_{args.slice}_results_{timestamp}.csv"
+    )
     file_exists = output_file.exists()
 
     # Define CSV columns - RAGAS metrics + Legal RAG Bench specific only
@@ -239,8 +243,7 @@ def main() -> None:
 
             # Check if relevant passage was retrieved
             relevant_passage_retrieved = any(
-                chunk.get("doc_id") == relevant_passage_id
-                for chunk in retrieved_chunks
+                chunk.get("doc_id") == relevant_passage_id for chunk in retrieved_chunks
             )
 
             # Compute RAGAS metrics (always enabled)
@@ -257,7 +260,9 @@ def main() -> None:
                 "context_precision_score": ragas_scores.get("context_precision", 0.0),
                 "context_recall_score": ragas_scores.get("context_recall", 0.0),
                 "answer_relevancy_score": ragas_scores.get("answer_relevancy", 0.0),
-                "judge_verdict": "PASS" if ragas_scores.get("faithfulness", 0.0) > 0.7 else "NEEDS_REVIEW",
+                "judge_verdict": "PASS"
+                if ragas_scores.get("faithfulness", 0.0) > 0.7
+                else "NEEDS_REVIEW",
                 "total_ms": timings.get("total", 0),
                 "error": "",
             }

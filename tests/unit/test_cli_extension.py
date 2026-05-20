@@ -1,8 +1,5 @@
 """Tests for CLI extension with legal-rag-bench dataset."""
 
-from pathlib import Path
-from unittest.mock import MagicMock, patch
-
 import pytest
 
 
@@ -85,18 +82,20 @@ class TestCLIExtension:
         with open(csv_file, "w", newline="") as f:
             writer = csv.DictWriter(f, fieldnames=fieldnames)
             writer.writeheader()
-            writer.writerow({
-                "query_id": "q001",
-                "question": "Test question?",
-                "faithfulness_score": 0.95,
-                "context_precision_score": 0.85,
-                "context_recall_score": 0.90,
-                "answer_relevancy_score": 0.88,
-                "judge_verdict": "PASS",
-            })
+            writer.writerow(
+                {
+                    "query_id": "q001",
+                    "question": "Test question?",
+                    "faithfulness_score": 0.95,
+                    "context_precision_score": 0.85,
+                    "context_recall_score": 0.90,
+                    "answer_relevancy_score": 0.88,
+                    "judge_verdict": "PASS",
+                }
+            )
 
         # Verify columns exist
-        with open(csv_file, "r") as f:
+        with open(csv_file) as f:
             reader = csv.DictReader(f)
             rows = list(reader)
             assert len(rows) == 1
@@ -123,7 +122,7 @@ class TestCLIExtension:
         with open(json_file, "w") as f:
             json.dump(summary, f)
 
-        with open(json_file, "r") as f:
+        with open(json_file) as f:
             loaded = json.load(f)
             assert loaded["ragas_enabled"] is True
             assert "faithfulness_score" in loaded["metrics_avg"]

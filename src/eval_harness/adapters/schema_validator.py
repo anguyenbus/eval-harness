@@ -60,7 +60,7 @@ def _load_schema(schema_path: Path) -> dict:
         with open(schema_path) as f:
             return json.load(f)
     except json.JSONDecodeError as e:
-        raise ValueError(f"Invalid JSON in schema file {schema_path}: {e}")
+        raise ValueError(f"Invalid JSON in schema file {schema_path}: {e}") from e
 
 
 def _format_field_path(error: ValidationError) -> str:

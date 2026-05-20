@@ -1,4 +1,5 @@
-"""Character-level F1 score for text fidelity comparison.
+"""
+Character-level F1 score for text fidelity comparison.
 
 This metric measures the character-level overlap between predicted and gold text,
 useful for evaluating OCR and text extraction quality.
@@ -6,7 +7,8 @@ useful for evaluating OCR and text extraction quality.
 
 
 def text_f1_score(predicted: str, gold: str) -> float:
-    """Calculate character-level F1 score between predicted and gold text.
+    """
+    Calculate character-level F1 score between predicted and gold text.
 
     F1 score is the harmonic mean of precision and recall at the character level.
     Uses character set intersection for counting.

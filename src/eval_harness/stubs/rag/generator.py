@@ -15,8 +15,6 @@ from typing import Any
 
 from beartype import beartype
 
-from eval_harness.stubs.rag.chromadb_config import GENERATOR_MODEL
-
 # Load .env file if it exists
 _env_path = Path.cwd() / ".env"
 if _env_path.exists():

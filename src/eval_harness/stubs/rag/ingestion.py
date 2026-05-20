@@ -147,7 +147,9 @@ class DocumentIngester:
 
         # Batch embed all chunks at once (much faster!)
         if all_chunks:
-            progress_task = console.status("[bold yellow]Generating embeddings for all chunks...")
+            progress_task = console.status(
+                "[bold yellow]Generating embeddings for all chunks..."
+            )
             progress_task.start()
 
             try:
@@ -157,7 +159,9 @@ class DocumentIngester:
                 progress_task.stop()
 
             # Batch upsert to ChromaDB with pre-computed embeddings
-            console.print(f"[bold yellow]Upserting {len(all_chunks)} chunks to ChromaDB...")
+            console.print(
+                f"[bold yellow]Upserting {len(all_chunks)} chunks to ChromaDB..."
+            )
 
             # Process in smaller batches for ChromaDB upsert (avoids memory issues)
             for i in range(0, len(all_chunks), BATCH_SIZE):

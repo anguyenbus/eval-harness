@@ -10,6 +10,7 @@ from eval_harness.stubs.stub_parser import parse as parse_stub
 
 try:
     from eval_harness.stubs.docling_parser import parse as parse_docling
+
     __all__ = ["parse_stub", "query_stub", "parse_docling"]
 except ImportError:
     __all__ = ["parse_stub", "query_stub"]

@@ -1,4 +1,5 @@
-"""Convert parser_output JSON schema to Markdown for evaluation.
+"""
+Convert parser_output JSON schema to Markdown for evaluation.
 
 This module converts the structured parser_output format (elements array)
 into Markdown strings so we can use opendataloader-bench metrics (NID, TEDS, MHS).
@@ -8,7 +9,8 @@ from typing import Any
 
 
 def elements_to_markdown(elements: list[dict[str, Any]]) -> str:
-    """Convert parser_output elements array to Markdown string.
+    """
+    Convert parser_output elements array to Markdown string.
 
     Args:
         elements: List of element dicts from parser_output schema.
@@ -88,7 +90,8 @@ def elements_to_markdown(elements: list[dict[str, Any]]) -> str:
 
 
 def _table_to_markdown(table_content: dict[str, Any]) -> str:
-    """Convert table content to Markdown table.
+    """
+    Convert table content to Markdown table.
 
     Args:
         table_content: TableContent dict with rows, cols, cells.
@@ -133,7 +136,8 @@ def _table_to_markdown(table_content: dict[str, Any]) -> str:
 
 
 def parser_output_to_markdown(parser_output: dict[str, Any]) -> str:
-    """Convert full parser_output dict to Markdown.
+    """
+    Convert full parser_output dict to Markdown.
 
     Args:
         parser_output: Full parser_output schema dict.

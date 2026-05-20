@@ -1,9 +1,5 @@
 """Tests for Legal RAG Bench configuration loading."""
 
-from pathlib import Path
-
-import pytest
-
 from eval_harness.config import load_config
 
 
@@ -35,8 +31,13 @@ class TestLegalRagBenchConfig:
         config = load_config(config_file)
 
         assert "legal_rag_bench" in config["datasets"]
-        assert config["datasets"]["legal_rag_bench"]["path"] == "/data/rag/legal_rag_bench"
-        assert config["datasets"]["legal_rag_bench"]["hf_token_path"] == "~/.huggingface/token"
+        assert (
+            config["datasets"]["legal_rag_bench"]["path"] == "/data/rag/legal_rag_bench"
+        )
+        assert (
+            config["datasets"]["legal_rag_bench"]["hf_token_path"]
+            == "~/.huggingface/token"
+        )
         assert config["datasets"]["legal_rag_bench"]["k_values"] == [5, 10, 20]
 
     def test_environment_variable_expansion_in_paths(self, tmp_path, monkeypatch):
@@ -63,8 +64,13 @@ class TestLegalRagBenchConfig:
 
         config = load_config(config_file)
 
-        assert config["datasets"]["legal_rag_bench"]["path"] == "/custom/data/rag/legal_rag_bench"
-        assert config["datasets"]["legal_rag_bench"]["hf_token_path"] == "/custom/hf/token"
+        assert (
+            config["datasets"]["legal_rag_bench"]["path"]
+            == "/custom/data/rag/legal_rag_bench"
+        )
+        assert (
+            config["datasets"]["legal_rag_bench"]["hf_token_path"] == "/custom/hf/token"
+        )
 
     def test_default_values_in_configuration(self, tmp_path):
         """Test that default values work in legal_rag_bench section."""
@@ -88,8 +94,14 @@ class TestLegalRagBenchConfig:
         config = load_config(config_file)
 
         # Should use defaults when env vars not set
-        assert config["datasets"]["legal_rag_bench"]["path"] == "./data/rag/legal_rag_bench"
-        assert config["datasets"]["legal_rag_bench"]["hf_token_path"] == "~/.huggingface/token"
+        assert (
+            config["datasets"]["legal_rag_bench"]["path"]
+            == "./data/rag/legal_rag_bench"
+        )
+        assert (
+            config["datasets"]["legal_rag_bench"]["hf_token_path"]
+            == "~/.huggingface/token"
+        )
 
     def test_ragas_judge_model_configuration(self, tmp_path):
         """Test that RAGAS judge model settings can be configured."""
@@ -117,7 +129,10 @@ class TestLegalRagBenchConfig:
 
         assert "ragas" in config["datasets"]["legal_rag_bench"]
         assert config["datasets"]["legal_rag_bench"]["ragas"]["judge_model"] == "gpt-4o"
-        assert config["datasets"]["legal_rag_bench"]["ragas"]["judge_model_provider"] == "openai"
+        assert (
+            config["datasets"]["legal_rag_bench"]["ragas"]["judge_model_provider"]
+            == "openai"
+        )
 
     def test_dataset_cache_path_configuration(self, tmp_path):
         """Test that dataset cache path is configurable."""
@@ -139,4 +154,7 @@ class TestLegalRagBenchConfig:
 
         config = load_config(config_file)
 
-        assert config["datasets"]["legal_rag_bench"]["cache_path"] == "/custom/cache/legal_rag_bench"
+        assert (
+            config["datasets"]["legal_rag_bench"]["cache_path"]
+            == "/custom/cache/legal_rag_bench"
+        )

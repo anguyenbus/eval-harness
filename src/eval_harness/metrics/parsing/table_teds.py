@@ -1,4 +1,5 @@
-"""TEDS (Tree Edit Distance Similarity) metric for table evaluation.
+"""
+TEDS (Tree Edit Distance Similarity) metric for table evaluation.
 
 Derived from opendataloader-bench and the PubTabNet paper.
 TEDS measures table structure similarity using tree edit distance.
@@ -41,6 +42,7 @@ class TableTree(Tree):
         content: list[str] | None = None,
         *children: "TableTree",
     ) -> None:
+        """Initialize table tree node with tag, span info, content, and children."""
         self.tag = tag
         self.colspan = colspan
         self.rowspan = rowspan
@@ -100,6 +102,7 @@ class TEDSEvaluator:
     def __init__(
         self, structure_only: bool = False, n_jobs: int = 1, ignore_nodes=None
     ):
+        """Initialize TEDS evaluator with structure-only mode and job parallelism."""
         self.structure_only = structure_only
         self.n_jobs = n_jobs
         self.ignore_nodes = ignore_nodes
@@ -240,7 +243,8 @@ def evaluate_table(
     gt: str,
     pred: str,
 ) -> tuple[float | None, float | None]:
-    """Evaluate predicted table markup against ground truth using TEDS.
+    """
+    Evaluate predicted table markup against ground truth using TEDS.
 
     Args:
         gt: Ground truth markdown string.
@@ -276,7 +280,8 @@ def evaluate_table(
 
 
 def teds_score(gt: str, pred: str) -> float:
-    """Calculate TEDS score (structure + content).
+    """
+    Calculate TEDS score (structure + content).
 
     Args:
         gt: Ground truth markdown string.
@@ -291,7 +296,8 @@ def teds_score(gt: str, pred: str) -> float:
 
 
 def teds_s_score(gt: str, pred: str) -> float:
-    """Calculate TEDS-S score (structure-only).
+    """
+    Calculate TEDS-S score (structure-only).
 
     Args:
         gt: Ground truth markdown string.
@@ -307,7 +313,8 @@ def teds_s_score(gt: str, pred: str) -> float:
 
 # Legacy alias for backward compatibility
 def table_teds(predicted_table: dict, gold_table: dict) -> float:
-    """Legacy: Calculate simplified table similarity.
+    """
+    Legacy: Calculate simplified table similarity.
 
     DEPRECATED: Use teds_score() with markdown strings instead.
     This is kept for backward compatibility with existing tests.

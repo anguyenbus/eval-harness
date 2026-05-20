@@ -68,15 +68,18 @@ def get_parser(parser_name: str) -> tuple[ParserAdapter, str]:
     """
     if parser_name == "stub":
         from eval_harness.stubs.stub_parser import parse as parse_func
+
         return ParserAdapter(parse_func), "stub"
 
     elif parser_name == "fast":
         from eval_harness.stubs.digital_pdf_parser import parse as parse_func
+
         return ParserAdapter(parse_func), "fast"
 
     elif parser_name == "docling":
         try:
             from eval_harness.stubs.docling_parser import parse as parse_func
+
             return ParserAdapter(parse_func), "docling"
         except ImportError as e:
             print(f"ERROR: {e}")
@@ -87,6 +90,7 @@ def get_parser(parser_name: str) -> tuple[ParserAdapter, str]:
         # For future: import custom parser module
         print(f"WARNING: Custom parser '{parser_name}' not implemented, using stub")
         from eval_harness.stubs.stub_parser import parse as parse_func
+
         return ParserAdapter(parse_func), "stub"
 
 
@@ -164,8 +168,7 @@ def main() -> None:
         default="stub",
         choices=["stub", "fast", "docling"],
         help=(
-            "Parser to use (fast=pypdf for digital PDFs, "
-            "docling=full parsing with OCR)"
+            "Parser to use (fast=pypdf for digital PDFs, docling=full parsing with OCR)"
         ),
     )
     parser.add_argument(
@@ -220,7 +223,15 @@ def main() -> None:
     fieldnames = [
         "query_id",
         "error",
-        "nid", "nid_s", "teds", "teds_s", "mhs", "mhs_s", "ard", "bleu", "meteor",
+        "nid",
+        "nid_s",
+        "teds",
+        "teds_s",
+        "mhs",
+        "mhs_s",
+        "ard",
+        "bleu",
+        "meteor",
     ]
 
     # Open CSV for incremental appending
@@ -299,19 +310,21 @@ def main() -> None:
                 def safe_float(x):
                     return round(x, 4) if x is not None else 0.0
 
-                writer.writerow({
-                    "query_id": query_id,
-                    "error": "",
-                    "nid": safe_float(nid),
-                    "nid_s": safe_float(nid_s),
-                    "teds": safe_float(teds),
-                    "teds_s": safe_float(teds_s),
-                    "mhs": safe_float(mhs),
-                    "mhs_s": safe_float(mhs_s),
-                    "ard": safe_float(ard),
-                    "bleu": safe_float(bleu),
-                    "meteor": safe_float(meteor),
-                })
+                writer.writerow(
+                    {
+                        "query_id": query_id,
+                        "error": "",
+                        "nid": safe_float(nid),
+                        "nid_s": safe_float(nid_s),
+                        "teds": safe_float(teds),
+                        "teds_s": safe_float(teds_s),
+                        "mhs": safe_float(mhs),
+                        "mhs_s": safe_float(mhs_s),
+                        "ard": safe_float(ard),
+                        "bleu": safe_float(bleu),
+                        "meteor": safe_float(meteor),
+                    }
+                )
                 csv_file.flush()
                 processed += 1
 
@@ -360,29 +373,40 @@ def main() -> None:
                 def safe_float(x):
                     return round(x, 4) if x is not None else 0.0
 
-                writer.writerow({
-                    "query_id": doc_id,
-                    "error": "",
-                    "nid": safe_float(nid),
-                    "nid_s": safe_float(nid_s),
-                    "teds": safe_float(teds),
-                    "teds_s": safe_float(teds_s),
-                    "mhs": safe_float(mhs),
-                    "mhs_s": safe_float(mhs_s),
-                    "ard": safe_float(ard),
-                    "bleu": safe_float(bleu),
-                    "meteor": safe_float(meteor),
-                })
+                writer.writerow(
+                    {
+                        "query_id": doc_id,
+                        "error": "",
+                        "nid": safe_float(nid),
+                        "nid_s": safe_float(nid_s),
+                        "teds": safe_float(teds),
+                        "teds_s": safe_float(teds_s),
+                        "mhs": safe_float(mhs),
+                        "mhs_s": safe_float(mhs_s),
+                        "ard": safe_float(ard),
+                        "bleu": safe_float(bleu),
+                        "meteor": safe_float(meteor),
+                    }
+                )
                 csv_file.flush()
                 processed += 1
 
         except Exception as e:
-            writer.writerow({
-                "query_id": query_id,
-                "error": str(e),
-                "nid": 0.0, "nid_s": 0.0, "teds": 0.0, "teds_s": 0.0,
-                "mhs": 0.0, "mhs_s": 0.0, "ard": 0.0, "bleu": 0.0, "meteor": 0.0,
-            })
+            writer.writerow(
+                {
+                    "query_id": query_id,
+                    "error": str(e),
+                    "nid": 0.0,
+                    "nid_s": 0.0,
+                    "teds": 0.0,
+                    "teds_s": 0.0,
+                    "mhs": 0.0,
+                    "mhs_s": 0.0,
+                    "ard": 0.0,
+                    "bleu": 0.0,
+                    "meteor": 0.0,
+                }
+            )
             csv_file.flush()
             errors += 1
 

@@ -2,7 +2,6 @@
 
 import json
 import time
-from pathlib import Path
 
 import pytest
 import yaml
@@ -49,9 +48,9 @@ class TestRAGPipeline:
         (tmp_path / "results").mkdir()
 
         # Run RAG eval
-        from eval_harness.runners.run_rag_eval import main
-
         import sys
+
+        from eval_harness.runners.run_rag_eval import main
 
         original_argv = sys.argv
         sys.argv = [
@@ -111,9 +110,9 @@ class TestRAGPipeline:
         (tmp_path / "results").mkdir()
 
         # Run RAG eval
-        from eval_harness.runners.run_rag_eval import main
-
         import sys
+
+        from eval_harness.runners.run_rag_eval import main
 
         original_argv = sys.argv
         sys.argv = [

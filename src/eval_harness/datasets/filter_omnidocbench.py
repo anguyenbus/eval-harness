@@ -19,8 +19,8 @@ from pathlib import Path
 
 try:
     from huggingface_hub import snapshot_download
-except ImportError:
-    raise ImportError("huggingface_hub required. Install: pip install huggingface_hub")
+except ImportError as err:
+    raise ImportError("huggingface_hub required. Install: pip install huggingface_hub") from err
 
 # HuggingFace dataset info
 HF_REPO = "opendatalab/OmniDocBench"

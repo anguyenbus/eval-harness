@@ -7,7 +7,11 @@ components of the document processing pipeline.
 
 import pytest
 
-from eval_harness.stubs.rag.chromadb_config import CHUNK_SIZE, EMBEDDING_DIM, EMBEDDING_MODEL
+from eval_harness.stubs.rag.chromadb_config import (
+    CHUNK_SIZE,
+    EMBEDDING_DIM,
+    EMBEDDING_MODEL,
+)
 from eval_harness.stubs.rag.chunker import FixedChunker
 from eval_harness.stubs.rag.embedder import SentenceTransformersEmbedder
 from eval_harness.stubs.rag.exceptions import EmbeddingError

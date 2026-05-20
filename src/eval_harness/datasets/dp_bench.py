@@ -42,19 +42,13 @@ def load_dp_bench(root: Path) -> Iterator[tuple[str, Path, dict]]:
     pdfs_dir = dataset_dir / "pdfs"
 
     if not dataset_dir.exists():
-        raise FileNotFoundError(
-            f"DP-Bench dataset directory not found: {dataset_dir}"
-        )
+        raise FileNotFoundError(f"DP-Bench dataset directory not found: {dataset_dir}")
 
     if not reference_path.exists():
-        raise FileNotFoundError(
-            f"DP-Bench reference.json not found: {reference_path}"
-        )
+        raise FileNotFoundError(f"DP-Bench reference.json not found: {reference_path}")
 
     if not pdfs_dir.exists():
-        raise FileNotFoundError(
-            f"DP-Bench pdfs directory not found: {pdfs_dir}"
-        )
+        raise FileNotFoundError(f"DP-Bench pdfs directory not found: {pdfs_dir}")
 
     # Load reference annotations
     with open(reference_path) as f:

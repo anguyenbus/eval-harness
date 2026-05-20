@@ -114,7 +114,7 @@ def load_config(config_path: Path, default_env_val: str | None = None) -> dict:
     try:
         config = yaml.safe_load(content)
     except yaml.YAMLError as e:
-        raise ValueError(f"Invalid YAML in config file: {e}")
+        raise ValueError(f"Invalid YAML in config file: {e}") from e
 
     if not isinstance(config, dict):
         raise ValueError("Config file must contain a YAML dictionary")

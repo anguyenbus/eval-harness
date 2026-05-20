@@ -1,4 +1,5 @@
-"""Structure recall metric for element detection coverage.
+"""
+Structure recall metric for element detection coverage.
 
 This metric measures how many of the gold element types were detected
 by the parser, regardless of count or accuracy within each type.
@@ -12,7 +13,8 @@ def structure_recall(
     gold_elements: list[dict[str, Any]],
     element_types: list[str],
 ) -> float:
-    """Calculate structure recall: fraction of gold element types detected.
+    """
+    Calculate structure recall: fraction of gold element types detected.
 
     For each element type present in gold, check if at least one element of
     that type appears in predicted. The score is the fraction of gold types

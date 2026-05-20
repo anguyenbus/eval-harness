@@ -7,6 +7,7 @@ the output to the eval-harness schema format.
 
 # Force CPU usage BEFORE importing docling
 import os
+
 os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 os.environ["DOCLING_DEVICE"] = "cpu"
 
@@ -16,9 +17,9 @@ from typing import Any
 
 # Try to import docling, provide clear error if not available
 try:
-    from docling.document_converter import DocumentConverter
     from docling.datamodel.base_models import InputFormat
     from docling.datamodel.settings import settings
+    from docling.document_converter import DocumentConverter
     from docling_core.types.doc import DocItemLabel
 
     DOCLING_AVAILABLE = True
@@ -93,6 +94,7 @@ def _polygon_from_bbox(bbox: Any, page_height: int) -> list[float]:
 
     Returns:
         Polygon as [x0, y0, x1, y0, x1, y1, x0, y1]
+
     """
     if not bbox:
         return [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
@@ -115,6 +117,7 @@ def _get_element_type(item: Any) -> str:
 
     Returns:
         Element type string for our schema
+
     """
     if not DOCLING_AVAILABLE:
         return "text"
@@ -138,6 +141,7 @@ def _get_heading_level(item: Any) -> int | None:
 
     Returns:
         Heading level (1-6) or None
+
     """
     if not DOCLING_AVAILABLE:
         return None
@@ -169,11 +173,10 @@ def parse(pdf_path: Path) -> dict[str, Any]:
     Raises:
         ImportError: If docling is not installed.
         RuntimeError: If parsing fails.
+
     """
     if not DOCLING_AVAILABLE:
-        raise ImportError(
-            "docling is not installed. Install with: uv add docling"
-        )
+        raise ImportError("docling is not installed. Install with: uv add docling")
 
     doc_id = _get_doc_id(pdf_path)
 
@@ -195,12 +198,14 @@ def parse(pdf_path: Path) -> dict[str, Any]:
             page = doc_pages_dict.get(page_no)
             if page is None:
                 # Default page size if not found
-                pages.append({
-                    "page_index": page_no,
-                    "width": 612,
-                    "height": 792,
-                    "rotation": 0,
-                })
+                pages.append(
+                    {
+                        "page_index": page_no,
+                        "width": 612,
+                        "height": 792,
+                        "rotation": 0,
+                    }
+                )
                 continue
 
             # Handle both Page object and simple size dict
@@ -217,12 +222,14 @@ def parse(pdf_path: Path) -> dict[str, Any]:
                 width = page.get("width", 612) if isinstance(page, dict) else 612
                 height = page.get("height", 792) if isinstance(page, dict) else 792
 
-            pages.append({
-                "page_index": page_no,
-                "width": width,
-                "height": height,
-                "rotation": 0,
-            })
+            pages.append(
+                {
+                    "page_index": page_no,
+                    "width": width,
+                    "height": height,
+                    "rotation": 0,
+                }
+            )
 
         # Build elements array
         elements = []
@@ -264,7 +271,9 @@ def parse(pdf_path: Path) -> dict[str, Any]:
 
             # Add bbox if available
             if prov and hasattr(prov, "bbox"):
-                page_height = pages[page_idx]["height"] if page_idx < len(pages) else 792
+                page_height = (
+                    pages[page_idx]["height"] if page_idx < len(pages) else 792
+                )
                 element["bbox"] = {
                     "x0": float(prov.bbox.l),
                     "y0": float(prov.bbox.t),
@@ -284,7 +293,9 @@ def parse(pdf_path: Path) -> dict[str, Any]:
         output = {
             "schema_version": "1.0.0",
             "parser_version": f"docling-{result._version if hasattr(result, '_version') else 'unknown'}",
-            "parsed_at": result._time_started if hasattr(result, "_time_started") else "2025-01-01T00:00:00Z",
+            "parsed_at": result._time_started
+            if hasattr(result, "_time_started")
+            else "2025-01-01T00:00:00Z",
             "source": {
                 "doc_id": doc_id,
                 "filename": pdf_path.name,

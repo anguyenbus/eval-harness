@@ -24,7 +24,6 @@ import boto3
 from opensearchpy import OpenSearch, RequestsHttpConnection
 from requests_aws4auth import AWS4Auth
 
-
 # =============================================================================
 # CONFIGURATION - Update these for your environment
 # =============================================================================
@@ -77,7 +76,8 @@ def create_opensearch_client(
     username: str | None = OPENSEARCH_USERNAME,
     password: str | None = OPENSEARCH_PASSWORD,
 ) -> OpenSearch:
-    """Create OpenSearch client with appropriate authentication.
+    """
+    Create OpenSearch client with appropriate authentication.
 
     Supports:
     - AWS IAM authentication (boto3 credentials)
@@ -92,6 +92,7 @@ def create_opensearch_client(
 
     Returns:
         Configured OpenSearch client
+
     """
     if region:
         # AWS IAM authentication
@@ -149,7 +150,8 @@ def create_opensearch_client(
 
 
 class Embedder:
-    """Embedding model wrapper.
+    """
+    Embedding model wrapper.
 
     Supports multiple backends. Use the same model that indexed your documents.
     """
@@ -186,13 +188,15 @@ class Embedder:
         return self._model
 
     def embed(self, text: str) -> list[float]:
-        """Embed a single text string.
+        """
+        Embed a single text string.
 
         Args:
             text: Text to embed
 
         Returns:
             List of floats representing the embedding vector
+
         """
         if hasattr(self, "_backend"):
             if self._backend == "openai":
@@ -228,7 +232,8 @@ def get_embedder() -> Embedder:
 
 
 class BedrockLLM:
-    """AWS Bedrock LLM wrapper for answer generation.
+    """
+    AWS Bedrock LLM wrapper for answer generation.
 
     Supports Anthropic Claude models via Bedrock.
     Uses the same AWS credentials as OpenSearch IAM auth.
@@ -258,7 +263,8 @@ class BedrockLLM:
         return self._client
 
     def generate(self, question: str, retrieved_chunks: list[dict]) -> str:
-        """Generate answer using Bedrock Anthropic Claude.
+        """
+        Generate answer using Bedrock Anthropic Claude.
 
         Args:
             question: User question
@@ -266,6 +272,7 @@ class BedrockLLM:
 
         Returns:
             Generated answer text
+
         """
         # Build context
         context_parts = []
@@ -277,21 +284,25 @@ class BedrockLLM:
         context = "\n\n".join(context_parts)
 
         # Bedrock request for Claude
-        body = self._json.dumps({
-            "anthropic_version": "bedrock-2023-05-31",
-            "max_tokens": self.max_tokens,
-            "messages": [{
-                "role": "user",
-                "content": f"""You are a legal assistant. Answer the question based ONLY on the provided context.
+        body = self._json.dumps(
+            {
+                "anthropic_version": "bedrock-2023-05-31",
+                "max_tokens": self.max_tokens,
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": f"""You are a legal assistant. Answer the question based ONLY on the provided context.
 
 Context:
 {context}
 
 Question: {question}
 
-Provide a concise answer:"""
-            }]
-        })
+Provide a concise answer:""",
+                    }
+                ],
+            }
+        )
 
         try:
             response = self.client.invoke_model(
@@ -313,7 +324,8 @@ _llm_backend = os.getenv("LLM_BACKEND", "template")  # template, bedrock, openai
 
 
 def get_llm() -> BedrockLLM | None:
-    """Get or create global LLM instance.
+    """
+    Get or create global LLM instance.
 
     Returns None if using template backend (default).
     """
@@ -342,7 +354,8 @@ def query_opensearch(
     char_span_field: str | None = CHAR_SPAN_FIELD,
     top_k: int = 5,
 ) -> dict[str, Any]:
-    """Query OpenSearch index for RAG evaluation.
+    """
+    Query OpenSearch index for RAG evaluation.
 
     This is the main integration point between your OpenSearch RAG system
     and eval-harness.
@@ -368,6 +381,7 @@ def query_opensearch(
             "retrieved_chunks": [{"chunk_id": str, "score": float, "char_span": [int, int]}, ...],
             "timings_ms": {"retrieval": int, "generation": int, "total": int}
         }
+
     """
     # 1. Create client
     client = create_opensearch_client(endpoint, region, username, password)
@@ -438,14 +452,14 @@ def query_opensearch(
         # Template fallback (default for testing)
         context_texts = [c.get("text", "") for c in retrieved_chunks]
         context = "\n\n".join(context_texts)
-        generated_answer = f"Based on {len(retrieved_chunks)} retrieved chunks: {context[:500]}..."
+        generated_answer = (
+            f"Based on {len(retrieved_chunks)} retrieved chunks: {context[:500]}..."
+        )
 
     generation_ms = int((time.time() - start_generation) * 1000)
 
     # 6. Build citations (all retrieved chunks)
-    citations = [
-        {"chunk_ids": [c["chunk_id"] for c in retrieved_chunks]}
-    ]
+    citations = [{"chunk_ids": [c["chunk_id"] for c in retrieved_chunks]}]
 
     return {
         "answer": {
@@ -511,9 +525,7 @@ def main() -> None:
             continue
 
         # Calculate metrics
-        recall_metrics = _calculate_recall_at_k(
-            gold_spans, output["retrieved_chunks"]
-        )
+        recall_metrics = _calculate_recall_at_k(gold_spans, output["retrieved_chunks"])
         f1_metrics = _token_f1(gold_answer, output["answer"]["text"])
 
         result = {

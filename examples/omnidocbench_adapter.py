@@ -26,6 +26,7 @@ def parse(pdf_path: Path) -> dict[str, Any]:
 
     Returns:
         Dictionary conforming to parser_output.schema.json
+
     """
     # OPTION 1: You have OmniDocBench-format parser
     # Uncomment and modify:
@@ -48,7 +49,7 @@ def parse(pdf_path: Path) -> dict[str, Any]:
             "page_index": 0,
             "char_span": [0, 50],
             "text": "This is example text from your parser.",
-            "content": {"kind": "text"}
+            "content": {"kind": "text"},
         }
     ]
 
@@ -62,24 +63,16 @@ def parse(pdf_path: Path) -> dict[str, Any]:
             "mime_type": "application/pdf",
             "sha256": "",  # Optional: compute hash if needed
             "page_count": 1,
-            "language": "en"
+            "language": "en",
         },
-        "pages": [
-            {
-                "page_index": 0,
-                "width": 612,
-                "height": 792,
-                "rotation": 0
-            }
-        ],
+        "pages": [{"page_index": 0, "width": 612, "height": 792, "rotation": 0}],
         "elements": elements,
-        "warnings": []
+        "warnings": [],
     }
 
 
 def omnidocbench_to_parser_harness(
-    omni_output: dict[str, Any],
-    pdf_path: Path
+    omni_output: dict[str, Any], pdf_path: Path
 ) -> dict[str, Any]:
     """
     Convert OmniDocBench format to eval-harness parser_output schema.
@@ -92,6 +85,7 @@ def omnidocbench_to_parser_harness(
 
     Returns:
         Dictionary conforming to parser_output.schema.json
+
     """
     doc_id = pdf_path.stem
 
@@ -104,10 +98,7 @@ def omnidocbench_to_parser_harness(
     char_offset = 0
 
     # Sort by order field (OmniDocBench reading order)
-    sorted_dets = sorted(
-        layout_dets,
-        key=lambda d: d.get("order", float("inf"))
-    )
+    sorted_dets = sorted(layout_dets, key=lambda d: d.get("order", float("inf")))
 
     for det in sorted_dets:
         text = det.get("text", "")
@@ -123,7 +114,7 @@ def omnidocbench_to_parser_harness(
             "page_index": page_info.get("page_no", 0),
             "char_span": [char_offset, char_offset + len(text)],
             "text": text,
-            "content": {"kind": "text"}
+            "content": {"kind": "text"},
         }
 
         if bbox:
@@ -139,15 +130,17 @@ def omnidocbench_to_parser_harness(
             "doc_id": doc_id,
             "filename": pdf_path.name,
             "mime_type": "application/pdf",
-            "page_count": 1
+            "page_count": 1,
         },
-        "pages": [{
-            "page_index": page_info.get("page_no", 0),
-            "width": page_info.get("width", 612),
-            "height": page_info.get("height", 792)
-        }],
+        "pages": [
+            {
+                "page_index": page_info.get("page_no", 0),
+                "width": page_info.get("width", 612),
+                "height": page_info.get("height", 792),
+            }
+        ],
         "elements": elements,
-        "warnings": []
+        "warnings": [],
     }
 
 
@@ -165,20 +158,10 @@ def _extract_bbox(poly: list[float] | None) -> dict[str, float] | None:
         # Bounding box: min x, min y, max x, max y
         xs = poly[0::2]
         ys = poly[1::2]
-        return {
-            "x0": min(xs),
-            "y0": min(ys),
-            "x1": max(xs),
-            "y1": max(ys)
-        }
+        return {"x0": min(xs), "y0": min(ys), "x1": max(xs), "y1": max(ys)}
     elif len(poly) == 4:
         # Already a bbox: [x0, y0, x1, y1]
-        return {
-            "x0": poly[0],
-            "y0": poly[1],
-            "x1": poly[2],
-            "y1": poly[3]
-        }
+        return {"x0": poly[0], "y0": poly[1], "x1": poly[2], "y1": poly[3]}
 
     return None
 
@@ -192,6 +175,7 @@ def _map_category_type(category_type: str) -> str:
 
     Returns:
         eval-harness element type
+
     """
     mapping = {
         "text_block": "paragraph",
@@ -207,7 +191,7 @@ def _map_category_type(category_type: str) -> str:
         "caption": "caption",
         "footnote": "footnote",
         "page_number": "page_number",
-        "code": "code_block"
+        "code": "code_block",
     }
 
     return mapping.get(category_type, "paragraph")
@@ -225,4 +209,5 @@ if __name__ == "__main__":
     result = parse(pdf_path)
 
     import json
+
     print(json.dumps(result, indent=2))
