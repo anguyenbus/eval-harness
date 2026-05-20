@@ -167,6 +167,32 @@ results/legalbench_rag_nano_results_20260518_224102.csv
 
 CSV format: one row per document/query, all metrics as columns. Files append incrementally for real-time progress visibility.
 
+### Example: Parsing Evaluation Output
+
+**DP-Bench (digital PDFs):**
+```csv
+query_id,nid,nid_s,teds,teds_s,mhs,mhs_s,ard,bleu,meteor
+dp_bench_001,0.852,0.871,0.742,0.768,0.910,0.925,0.125,0.623,0.541
+dp_bench_002,0.891,0.905,0.801,0.822,0.945,0.951,0.089,0.701,0.612
+```
+
+**OmniDocBench (multi-modal, English-only):**
+```csv
+query_id,nid,nid_s,teds,teds_s,mhs,mhs_s,ard,bleu,meteor
+omnidocbench_0,0.793,0.793,0.0,0.0,0.0,0.0,0.0,0.235,0.503
+omnidocbench_1,0.852,0.852,0.0,0.0,0.0,0.0,0.666,0.396,0.622
+omnidocbench_2,0.956,0.956,0.0,0.0,0.0,0.0,0.247,0.683,0.808
+```
+
+### Example: RAG Evaluation Output
+
+```csv
+query_id,recall_at_k,precision_at_k,f1_score,answer_supported,citation_precision,total_ms
+legalbench_0,0.85,0.80,0.72,True,0.90,1523
+legalbench_1,0.62,0.58,0.55,True,0.85,1845
+legalbench_2,0.91,0.88,0.79,True,0.95,1398
+```
+
 ## Dataset Acquisition
 
 ### Parsing Datasets (HuggingFace)
@@ -356,6 +382,7 @@ No data migration required — just add an adapter wrapper.
 
 ## Documentation
 
+- [Design Documents](docs/design/) - Architecture, data flow, and schema design
 - [OpenSearch Integration Guide](docs/guides/opensearch-integration.md) - Complete walkthrough for OpenSearch users
 - [Parser Output Schema Explained](docs/guides/parser-output-schema-explained.md) - Why the universal schema exists
 - [Schema Alignment Guide](docs/guides/schema-alignment-guide.md) - OmniDocBench → eval-harness mapping
