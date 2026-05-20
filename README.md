@@ -1,6 +1,6 @@
 # eval-harness
 
-Evaluation framework for document parsing and RAG systems. Supports deterministic metrics, LLM-as-judge evaluation, and reproducible baseline comparisons using public benchmarks (OmniDocBench, DP-Bench, LegalBench-RAG).
+Evaluation framework for document parsing and RAG systems. Supports deterministic metrics, LLM-as-judge evaluation (RAGAS), and reproducible baseline comparisons using public benchmarks (OmniDocBench, DP-Bench, Legal RAG Bench).
 
 ## Quick Start
 
@@ -8,15 +8,18 @@ Evaluation framework for document parsing and RAG systems. Supports deterministi
 # Install dependencies
 uv sync
 
-# Download datasets
-uv run python scripts/download_datasets.py --datasets all
-
-# Set API key for RAG evaluation
+# Set API keys for RAGAS evaluation
 export OPENAI_API_KEY=sk-...
+export HF_TOKEN=...  # For Legal RAG Bench (optional if ~/.huggingface/token exists)
 
-# Run evaluations
+# Prepare Legal RAG Bench corpus
+uv run python scripts/prepare_legal_rag_bench_corpus.py
+
+# Run parsing evaluation
 uv run eval-parsing --dataset dp_bench --parser fast
-uv run eval-rag --dataset legalbench_rag --slice nano
+
+# Run RAG evaluation (RAGAS LLM-judge metrics)
+uv run eval-rag --slice nano
 
 # View results
 cat results/*.csv
@@ -30,44 +33,9 @@ cat results/*.csv
 uv sync
 ```
 
-### 2. Download Datasets
+### 2. Set API Keys
 
-**Parsing datasets (HuggingFace):**
-```bash
-uv run python scripts/download_datasets.py --datasets all
-
-# Or specific dataset
-uv run python scripts/download_datasets.py --datasets dp_bench
-uv run python scripts/download_datasets.py --datasets omnidocbench
-```
-
-**RAG dataset (manual Dropbox download):**
-```bash
-uv run python scripts/download_datasets.py --datasets legalbench_rag
-```
-
-Follow the printed instructions:
-1. Visit https://github.com/zeroentropy-cc/legalbenchrag
-2. Download via Dropbox link in README
-3. Extract to `data/rag/legalbench_rag/`
-
-### 3. Configure Dataset Paths
-
-Edit `eval_config.yaml` to match your downloaded dataset locations:
-
-```yaml
-datasets:
-  omnidocbench:
-    path: data/parsing/omnidocbench_english
-  dp_bench:
-    path: data/parsing/dp_bench
-  legalbench_rag:
-    path: data/rag/legalbench_rag
-```
-
-### 4. Set API Keys
-
-For RAG evaluation, set your OpenAI API key:
+For RAGAS evaluation (LLM-as-a-judge metrics):
 
 ```bash
 export OPENAI_API_KEY=sk-...
@@ -75,9 +43,36 @@ export OPENAI_API_KEY=sk-...
 echo "OPENAI_API_KEY=sk-..." > .env
 ```
 
-### 5. Run Evaluations
+For Legal RAG Bench dataset (HuggingFace):
 
-See commands in [Parsing Evaluation](#parsing-evaluation) and [RAG Evaluation](#rag-evaluation) sections below.
+```bash
+export HF_TOKEN=hf_...
+# Or create ~/.huggingface/token
+```
+
+### 3. Prepare Legal RAG Bench Corpus
+
+```bash
+# Downloads corpus from HuggingFace and exports to text files for ChromaDB
+uv run python scripts/prepare_legal_rag_bench_corpus.py
+```
+
+This downloads the isaacus/legal-rag-bench corpus (4,876 passages) and prepares it for the stub RAG implementation.
+
+### 4. Configure (Optional)
+
+Edit `eval_config.yaml` for dataset paths and model settings:
+
+```yaml
+datasets:
+  legal_rag_bench:
+    path: data/rag/legal_rag_bench/corpus_files
+    cache_path: data/rag/legal_rag_bench
+    k_values: [5, 10, 20]
+    ragas:
+      judge_model: gpt-4o
+      judge_model_provider: openai
+```
 
 ## Parsing Evaluation
 
@@ -118,117 +113,72 @@ uv run eval-parsing --dataset dp_bench --parser fast --output-dir ./my_results
 
 ## RAG Evaluation
 
-Evaluate retrieval-augmented generation systems on legal Q&A.
+Evaluate RAG systems on legal reasoning questions using RAGAS LLM-judge metrics.
 
-### Dataset
+### Dataset: Legal RAG Bench
 
-| Slice | Queries | Description |
-|-------|---------|-------------|
-| `nano` | 48 | Quick test (12 queries × 4 corpora) |
-| `mini` | 776 | Standard evaluation |
-| `full` | 6,889 | Complete benchmark |
+**Source**: isaacus/legal-rag-bench (HuggingFace)
+
+- **100 questions** from Victorian Criminal Charge Book
+- **4,876 passages** in corpus
+- **Domain**: Criminal law, jury procedures, evidence law
+- **Reasoning intensity**: Multi-step legal reasoning required
+
+### Slices
+
+| Slice | Questions | Use Case |
+|-------|-----------|----------|
+| `nano` | 10 | Quick testing, development |
+| `full` | 100 | Complete evaluation |
 
 ### Commands
 
 ```bash
-# Nano slice (default top-k=5)
-uv run eval-rag --dataset legalbench_rag --slice nano
+# Nano slice (10 questions, default top-k=5)
+uv run eval-rag --slice nano
 
-# Mini slice with more retrieved chunks
-uv run eval-rag --dataset legalbench_rag --slice mini --top-k 10
+# Full evaluation with custom retrieval depth
+uv run eval-rag --slice full --top-k 10
 
 # Force re-ingestion of corpus into ChromaDB
-uv run eval-rag --dataset legalbench_rag --slice mini --force-reingest
-
-# Full evaluation
-uv run eval-rag --dataset legalbench_rag --slice full
+uv run eval-rag --slice nano --force-reingest
 ```
 
 **Note:** The stub option (ChromaDB-based reference implementation) is used by default. To evaluate your own RAG system, implement a custom query function and integrate it via the `RagAdapter`.
 
-### Metrics
+### RAGAS Metrics
 
-- **Recall@k** - Gold span overlap with retrieved chunks
-- **Precision@k** - Relevant chunks retrieved / k
-- **F1 Score** - Token-level answer quality
-- **Exact Match** - Exact string match
-- **Answer Supported** - LLM judgment if answer cites retrieved context
-- **Citation Precision** - Valid citations / total citations
-- **Latency** - Retrieval, generation, total time (ms)
+| Metric | Component | Description |
+|--------|-----------|-------------|
+| **Faithfulness** | Generator | Factual consistency of generated answer vs retrieved context |
+| **Context Precision** | Retriever | Signal-to-noise ratio in retrieved chunks (ranking quality) |
+| **Context Recall** | Retriever | Coverage of relevant information in retrieved chunks |
+| **Answer Relevancy** | End-to-end | Directness of response to original question |
+
+All metrics use LLM-as-a-judge (gpt-4o) for evaluation. See [docs/legal-rag-bench-guide.md](docs/legal-rag-bench-guide.md) for detailed explanations and examples.
+
+### Additional Metrics
+
+- **Relevant Passage Retrieved** - Binary: was the gold passage retrieved?
+- **Latency** - Total query time (ms)
 
 ## Results
 
 Results written to `results/` with timestamp:
 
 ```
-results/dp_bench_fast_results_20260518_223805.csv
-results/legalbench_rag_nano_results_20260518_224102.csv
+results/legal_rag_bench_nano_results_20260520_223534.csv
+results/legal_rag_bench_full_results_20260520_224102.csv
 ```
 
-CSV format: one row per document/query, all metrics as columns. Files append incrementally for real-time progress visibility.
-
-### Example: Parsing Evaluation Output
-
-**DP-Bench (digital PDFs):**
-```csv
-query_id,nid,nid_s,teds,teds_s,mhs,mhs_s,ard,bleu,meteor
-dp_bench_001,0.852,0.871,0.742,0.768,0.910,0.925,0.125,0.623,0.541
-dp_bench_002,0.891,0.905,0.801,0.822,0.945,0.951,0.089,0.701,0.612
-```
-
-**OmniDocBench (multi-modal, English-only):**
-```csv
-query_id,nid,nid_s,teds,teds_s,mhs,mhs_s,ard,bleu,meteor
-omnidocbench_0,0.793,0.793,0.0,0.0,0.0,0.0,0.0,0.235,0.503
-omnidocbench_1,0.852,0.852,0.0,0.0,0.0,0.0,0.666,0.396,0.622
-omnidocbench_2,0.956,0.956,0.0,0.0,0.0,0.0,0.247,0.683,0.808
-```
+CSV format: one row per query, all metrics as columns. Files append incrementally for real-time progress visibility.
 
 ### Example: RAG Evaluation Output
 
 ```csv
-query_id,recall_at_k,precision_at_k,f1_score,answer_supported,citation_precision,total_ms
-legalbench_0,0.85,0.80,0.72,True,0.90,1523
-legalbench_1,0.62,0.58,0.55,True,0.85,1845
-legalbench_2,0.91,0.88,0.79,True,0.95,1398
-```
-
-## Dataset Acquisition
-
-### Parsing Datasets (HuggingFace)
-
-```bash
-uv run python scripts/download_datasets.py --datasets all
-uv run python scripts/download_datasets.py --datasets dp_bench
-uv run python scripts/download_datasets.py --datasets omnidocbench
-```
-
-**Note**: OmniDocBench is automatically filtered to English-only during download (1,651 → 593 pages). Filter keeps: academic_literature, research_report, exam_paper, colorful_textbook, book, PPT2PDF.
-
-Downloads to `data/parsing/`. Requires `huggingface_hub`.
-
-### LegalBench-RAG (Manual Download)
-
-```bash
-uv run python scripts/download_datasets.py --datasets legalbench_rag
-```
-
-Follow the printed instructions:
-1. Visit https://github.com/zeroentropy-cc/legalbenchrag
-2. Download via Dropbox link in README
-3. Extract to `data/rag/legalbench_rag/`
-
-Expected structure:
-```
-data/rag/legalbench_rag/
-├── corpus/
-│   ├── contractnli/
-│   ├── cuad/
-│   ├── maud/
-│   └── privacyqa/
-└── queries/
-    ├── legalbench_rag_test.json
-    └── legalbench_rag_mini.json
+query_id,question,gold_answer,generated_answer,relevant_passage_retrieved,faithfulness_score,context_precision_score,context_recall_score,answer_relevancy_score,judge_verdict,total_ms
+q_0,"Bob and Ted...","No. While the bench book...","I don't have enough...",True,1.0,0.25,0.333,0.0,NEEDS_REVIEW,1523
+q_1,"What is the burden...","The prosecution bears...","The prosecution must...",False,0.85,0.60,0.75,0.92,PASS,1845
 ```
 
 ## Configuration
@@ -237,12 +187,20 @@ Edit `eval_config.yaml` for dataset paths and model settings:
 
 ```yaml
 datasets:
+  legal_rag_bench:
+    path: data/rag/legal_rag_bench/corpus_files
+    cache_path: data/rag/legal_rag_bench
+    k_values: [5, 10, 20]
+    ragas:
+      judge_model: gpt-4o
+      judge_model_provider: openai
+      temperature: 0
+
   omnidocbench:
     path: /path/to/omnidocbench
+
   dp_bench:
     path: /path/to/dp_bench
-  legalbench_rag:
-    path: /path/to/legalbench_rag
 ```
 
 ## Project Structure
@@ -255,29 +213,27 @@ datasets:
 ├── README.md
 │
 ├── contracts/              # JSON Schema contracts
-├── eval_questions/         # Declarative evaluation criteria
+├── docs/                   # Documentation
+│   └── legal-rag-bench-guide.md
 │
-├── scripts/                # Dataset download utilities
-│   └── download_datasets.py
+├── scripts/                # Dataset utilities
+│   ├── download_datasets.py
+│   └── prepare_legal_rag_bench_corpus.py
 │
 ├── src/eval_harness/
 │   ├── __init__.py
 │   ├── config.py           # Config loader
 │   ├── adapters/           # User integrates their systems here
 │   │   ├── parser_adapter.py
-│   │   └── rag_adapter.py
+│   │   ├── rag_adapter.py
+│   │   └── ragas_adapter.py  # RAGAS LLM-judge wrapper
 │   ├── datasets/           # Benchmark loaders
-│   │   ├── legalbench_rag.py
+│   │   ├── legal_rag_bench.py  # isaacus/legal-rag-bench (HF)
 │   │   ├── omnidocbench.py
 │   │   └── dp_bench.py
 │   ├── metrics/            # ALL evaluation metrics
-│   │   └── parsing/        # NID, TEDS, MHS, BLEU, METEOR
-│   │       ├── nid.py
-│   │       ├── teds.py
-│   │       ├── mhs.py
-│   │       ├── reading_order.py
-│   │       ├── text_similarity.py
-│   │       └── markdown_converter.py
+│   │   ├── parsing/        # NID, TEDS, MHS, BLEU, METEOR
+│   │   └── ragas_config.py  # RAGAS LLM/embedding backends
 │   ├── runners/            # CLI entry points
 │   │   ├── run_parsing_eval.py
 │   │   └── run_rag_eval.py
@@ -291,25 +247,20 @@ datasets:
 │           ├── chromadb_config.py
 │           ├── chromadb_query.py
 │           ├── chunker.py
-│           ├── citations.py
 │           ├── embedder.py
-│           ├── exceptions.py
 │           ├── generator.py
-│           ├── ingestion.py
-│           ├── retriever.py
-│           ├── schema_conformance.py
-│           └── tracing.py
+│           └── ingestion.py
 │
 ├── tests/                  # Unit and integration tests
-│   └── stubs/              # Tests for reference implementations
-│       └── rag/
 │
 ├── data/                   # Benchmark datasets (gitignored)
 │   ├── parsing/
 │   │   ├── omnidocbench_english/
 │   │   └── dp_bench/
 │   └── rag/
-│       └── legalbench_rag/
+│       └── legal_rag_bench/
+│           ├── corpus_files/  # 4,876 passages as .txt files
+│           └── cache/         # HuggingFace cache
 │
 └── results/                # CSV outputs (gitignored)
 ```
@@ -318,24 +269,18 @@ datasets:
 
 ## Dependencies
 
+**Parsing:**
 - `pypdf` - Fast digital PDF parsing
-- `docling` - OCR and layout analysis (optional)
+- `docling` - OCR and layout analysis
 - `sacrebleu` - BLEU score
 - `nltk` - METEOR score
-- `sentence-transformers` - Semantic embedding (all-MiniLM-L6-v2)
-- `chromadb` - Vector store
-- `openai` - LLM generation (set `OPENAI_API_KEY` in `.env`)
 
-## Performance
-
-- **Parsing**: ~250ms/doc (DP-Bench, fast parser, with all metrics)
-- **RAG**: ~2-3s/query (nano slice, ChromaDB + gpt-4o)
-
-Optimizations:
-- Model caching (embedder, generator loaded once)
-- Pre-embedding batch ingestion
-- CSV append for real-time progress
-- sacrebleu direct import (100x faster than HF wrapper)
+**RAG:**
+- `ragas>=0.2` - LLM-as-a-judge metrics
+- `sentence-transformers` - Semantic embeddings
+- `chromadb` - Vector store (stub implementation)
+- `openai` - LLM judge (set `OPENAI_API_KEY` in `.env`)
+- `datasets` - HuggingFace dataset loader
 
 ## Using Your Own RAG System
 
@@ -348,8 +293,8 @@ eval-harness is designed to evaluate **your** RAG system, not provide one. The C
    def query(question: str, corpus_dir: Path) -> dict:
        # Your RAG logic here
        return {
-           "answer": {"text": "...", "answer_supported": True, "citations": [...]},
-           "retrieved_chunks": [{"chunk_id": "...", "score": 0.85, "char_span": [0, 100]}],
+           "answer": {"text": "..."},
+           "retrieved_chunks": [{"doc_id": "...", "score": 0.85, "text": "..."}],
            "timings_ms": {"retrieval": 50, "generation": 500, "total": 550}
        }
    ```
@@ -366,26 +311,17 @@ eval-harness is designed to evaluate **your** RAG system, not provide one. The C
 
 For teams with vectors stored on OpenSearch (AWS or self-hosted):
 
-- **Guide**: [docs/guides/opensearch-integration.md](docs/guides/opensearch-integration.md) - Complete integration walkthrough
-- **Example**: [examples/opensearch_rag_adapter.py](examples/opensearch_rag_adapter.py) - Working code template
+- **Guide**: [docs/guides/opensearch-integration.md](docs/guides/opensearch-integration.md)
+- **Example**: [examples/opensearch_rag_adapter.py](examples/opensearch_rag_adapter.py)
 
 Other vector stores (Pinecone, pgvector, Weaviate) follow the same adapter pattern.
 
-### OmniDocBench Integration
-
-For teams already using OmniDocBench format:
-
-- **Guide**: [docs/guides/schema-alignment-guide.md](docs/guides/schema-alignment-guide.md) - Minimal integration effort (~40 min)
-- **Example**: [examples/omnidocbench_adapter.py](examples/omnidocbench_adapter.py) - Adapter template
-
-No data migration required — just add an adapter wrapper.
-
 ## Documentation
 
+- [Legal RAG Bench: Comprehensive Guide](docs/legal-rag-bench-guide.md) - Dataset structure, RAGAS metrics explained, score interpretation
 - [Design Documents](docs/design/) - Architecture, data flow, and schema design
 - [OpenSearch Integration Guide](docs/guides/opensearch-integration.md) - Complete walkthrough for OpenSearch users
 - [Parser Output Schema Explained](docs/guides/parser-output-schema-explained.md) - Why the universal schema exists
 - [Schema Alignment Guide](docs/guides/schema-alignment-guide.md) - OmniDocBench → eval-harness mapping
-- [FAQ: OmniDocBench Users](docs/guides/faq-omnidocbench-users.md) - Common questions
 - [Custom Dataset Guide](docs/guides/custom-dataset-guide.md) - Integrate your own data
 - [Contracts README](contracts/README.md) - Schema documentation
