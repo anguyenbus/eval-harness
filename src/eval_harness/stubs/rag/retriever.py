@@ -100,7 +100,7 @@ class SemanticRetriever:
             for rank, chunk_id in enumerate(results["ids"][0]):
                 # Extract metadata
                 metadata = (
-                    results["metadata"][0][rank] if results.get("metetadata") else {}
+                    results["metadatas"][0][rank] if results.get("metadatas") else {}
                 )
                 doc_id = metadata.get("doc_id", "")
                 char_span = metadata.get("char_span", [0, 0])
