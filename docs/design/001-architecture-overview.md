@@ -1,9 +1,5 @@
 # Architecture Overview
 
-**Status:** Proposed
-**Author:** Eval-Harness Team
-**Date:** 2025-01-19
-
 ## 1. System Purpose
 
 Eval-Harness is a cloud-based evaluation framework for document parsing and RAG systems. It runs on AWS and provides:

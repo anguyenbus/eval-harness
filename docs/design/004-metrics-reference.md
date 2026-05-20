@@ -1,9 +1,5 @@
 # Metrics Reference
 
-**Status:** Proposed
-**Author:** Eval-Harness Team
-**Date:** 2025-01-19
-
 ## 1. Parsing Metrics
 
 Metrics for evaluating document parsing quality. Each measures a different aspect of extraction accuracy.
