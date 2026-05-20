@@ -1,0 +1,19 @@
+{
+  "dataset": "omnidocbench",
+  "parser": "docling",
+  "timestamp": "20260519_001044",
+  "csv_file": "omnidocbench_docling_results_20260519_001044.csv",
+  "metrics_avg": {
+    "nid": 0.8437,
+    "nid_s": 0.8437,
+    "teds": 0.0,
+    "teds_s": 0.0,
+    "mhs": 0.0,
+    "mhs_s": 0.0,
+    "ard": 0.2068,
+    "bleu": 0.3759,
+    "meteor": 0.5591
+  },
+  "total_processed": 10,
+  "errors": 0
+}
