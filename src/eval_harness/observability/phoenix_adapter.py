@@ -124,20 +124,22 @@ class PhoenixAdapter:
     def _initialize(self) -> None:
         """Initialize OpenTelemetry tracer using Phoenix register()."""
         try:
-            from opentelemetry import trace
             from phoenix.otel import register
 
             # Use gRPC endpoint (Phoenix's recommended default)
             otlp_endpoint = self._get_otlp_endpoint(self._endpoint)
 
-            register(
+            # Register with Phoenix: batch processing, no global registration, quiet
+            self._tracer_provider = register(
                 endpoint=otlp_endpoint,
                 project_name=self._project_name,
                 protocol="grpc",
+                batch=True,  # Use BatchSpanProcessor (production-ready)
+                set_global_tracer_provider=False,  # Don't set global default
+                verbose=False,  # Suppress verbose output
             )
 
-            self._tracer_provider = trace.get_tracer_provider()
-            self._tracer = trace.get_tracer("eval-harness")
+            self._tracer = self._tracer_provider.get_tracer("eval-harness")
 
         except Exception as e:
             import sys

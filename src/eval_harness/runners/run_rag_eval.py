@@ -2,9 +2,9 @@
 CLI runner for RAG evaluation on Legal RAG Bench.
 
 Usage:
-    uv run eval-rag --slice full
+    uv run eval-rag --slice full --rag stub-local
 
-NOTE: The stub RAG option uses a ChromaDB-based reference implementation
+NOTE: The stub-local RAG option uses a ChromaDB-based reference implementation
 for demonstration purposes. It is not intended for production use.
 
 RAGAS LLM-judge metrics (Faithfulness, ContextPrecision, ContextRecall,
@@ -143,11 +143,11 @@ def get_rag(
     """
     Get RAG adapter by name.
 
-    NOTE: The 'stub' option uses a reference ChromaDB implementation
+    NOTE: The 'stub-local' option uses a reference ChromaDB implementation
     for demonstration purposes. It is not intended for production use.
 
     Args:
-        rag_name: Name of RAG system ('stub' uses ChromaDB-backed system).
+        rag_name: Name of RAG system ('stub-local' uses ChromaDB-backed system).
         force_reingest: Force re-ingestion of corpus.
         top_k: Number of chunks to retrieve.
         embedder: Optional shared embedder instance.
@@ -156,7 +156,7 @@ def get_rag(
         RagAdapter instance.
 
     """
-    if rag_name == "stub":
+    if rag_name == "stub-local":
         # Use ChromaDB-backed query system (reference stub implementation)
         from eval_harness.stubs.rag.chromadb_query import query as chromadb_query
 
@@ -175,8 +175,8 @@ def get_rag(
         return RagAdapter(query_callable=chromadb_wrapper, embedder=embedder)
     else:
         # For future: import custom RAG module
-        print(f"WARNING: Custom RAG '{rag_name}' not implemented, using stub")
-        print("NOTE: Stub implementation is for demonstration only")
+        print(f"WARNING: Custom RAG '{rag_name}' not implemented, using stub-local")
+        print("NOTE: stub-local implementation is for demonstration only")
         from eval_harness.stubs.rag.chromadb_query import query as chromadb_query
 
         def chromadb_wrapper(
@@ -208,8 +208,12 @@ def main() -> None:
     )
     parser.add_argument(
         "--rag",
-        default="stub",
-        help="RAG system to use (NOTE: 'stub' is for demonstration only)",
+        required=True,
+        choices=["stub-local"],
+        help=(
+            "RAG system to use. Options: stub-local "
+            "(ChromaDB-backed reference implementation)"
+        ),
     )
     parser.add_argument(
         "--config",
@@ -340,8 +344,8 @@ def main() -> None:
 
     # Get RAG system
     print(f"Using RAG system: {args.rag}")
-    if args.rag == "stub":
-        print("NOTE: Using reference stub implementation (demonstration only)")
+    if args.rag == "stub-local":
+        print("NOTE: Using reference stub-local implementation (demonstration only)")
     if args.force_reingest:
         print("Force reingest enabled")
     print(f"Top-k retrieval: {args.top_k}")
