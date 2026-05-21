@@ -39,7 +39,23 @@ AI is evolving. Soon we'll have systems that can:
 
 **DeepEval** already has built-in tests for these advanced capabilities. **RAGAS** is focused only on basic question-answering and would require custom work to handle these newer use cases.
 
-**In short:** DeepEval gives us better testing today and is ready for the AI systems of tomorrow. The debugging capabilities alone save hours when improving our systems—we can see exactly what went wrong instead of guessing from a single number.
+### 4. Flexibility: Use Any AI Model
+
+Different organizations use different AI providers. Some use OpenAI, some use AWS (Bedrock), some use Google, and some run their own local models.
+
+**DeepEval** works with all of them:
+- **OpenAI** (GPT-4, GPT-4o, GPT-4o-mini)
+- **AWS Bedrock** (Claude, Titan models)
+- **Anthropic** (Claude directly)
+- **Google** (Gemini)
+- **Azure OpenAI**
+- **Local models** (Ollama, custom deployments)
+
+**Why this matters:** We're not locked into one vendor. If OpenAI raises prices or Claude becomes better, we can switch by changing one line of configuration. Our tests continue working without modification.
+
+**RAGAS** supports multiple providers too, but DeepEval's integration is more seamless and actively maintained with newer providers added regularly.
+
+**In short:** DeepEval gives us better testing today, works with any AI provider, and is ready for the AI systems of tomorrow. The debugging capabilities alone save hours when improving our systems—we can see exactly what went wrong instead of guessing from a single number.
 
 ---
 
@@ -252,6 +268,49 @@ DeepEval's 2026 roadmap focuses on:
 - **Integration partners**: LangChain, LlamaIndex, Phoenix, LangSmith
 - **Academic research backing** for metrics
 
+### 6. Multi-Model Provider Support
+
+DeepEval supports evaluation using **any major LLM provider**, giving organizations flexibility to choose or switch vendors without rewriting evaluation code.
+
+#### Supported Providers
+
+| Provider | Models | Integration |
+|----------|--------|-------------|
+| **OpenAI** | GPT-4, GPT-4o, GPT-4o-mini | Native |
+| **AWS Bedrock** | Claude, Titan, Llama | Native (Bedrock Runtime Converse API) |
+| **Anthropic** | Claude 3.5 Sonnet, Opus | Native |
+| **Google** | Gemini Pro/Ultra | Native |
+| **Azure OpenAI** | GPT models | Native |
+| **Local** | Ollama, custom | Custom LLM configuration |
+
+**Source:** [DeepEval 2025 Changelog](https://deepeval.com/changelog/changelog-2025), [Amazon Bedrock Integration](https://deepeval.com/integrations/models/amazon-bedrock)
+
+#### Implementation Example
+
+Our code demonstrates this flexibility:
+
+```python
+# Uses OpenAI by default
+evaluator = DeepEvalEvaluator(
+    llm_provider="openai",
+    judge_model="gpt-4o-mini"  # Cost-effective option
+)
+
+# Can switch to AWS Bedrock with one line change
+evaluator = DeepEvalEvaluator(
+    llm_provider="bedrock",
+    judge_model="anthropic.claude-3-5-sonnet-20241022-v2:0"
+)
+```
+
+**RAGAS Comparison:** RAGAS also supports multiple providers, but DeepEval's provider support is more comprehensive and actively updated with newer integrations (e.g., Bedrock Runtime Converse API added in 2025).
+
+**Business Impact:**
+- No vendor lock-in
+- Cost optimization (switch to cheaper models when appropriate)
+- Geographic compliance (use local models for data residency)
+- Redundancy (switch providers during outages)
+
 ## Cost Considerations
 
 Our implementation uses `gpt-4o-mini` as the default judge model:
@@ -318,4 +377,7 @@ The implementation in eval-harness demonstrates these advantages through:
 - [DeepEval GitHub Repository](https://github.com/confident-ai/deepeval)
 - [RAGAS Multi-Turn Documentation](https://docs.ragas.io/en/stable/howtos/applications/evaluating_multi_turn_conversations/)
 - [DeepEval 2026 Changelog](https://deepeval.com/changelog/changelog-2026)
+- [DeepEval 2025 Changelog - Provider Support](https://deepeval.com/changelog/changelog-2025)
+- [Amazon Bedrock Integration](https://deepeval.com/integrations/models/amazon-bedrock)
+- [Custom LLM Guide](https://deepeval.com/guides/guides-using-custom-llms)
 - [Best AI Evaluation Tools 2026](https://www.confident-ai.com/knowledge-base/compare/best-ai-evaluation-tools-for-prompt-experimentation-2026)
