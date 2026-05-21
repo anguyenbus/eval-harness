@@ -38,6 +38,12 @@ dependencies = [
     "datasets",
 ]
 
+[project.optional-dependencies]
+phoenix = [
+    "arize-phoenix>=4.0.0",
+    "openinference-instrumentation>=0.1.0",
+]
+
 [project.scripts]
 eval-parsing = "eval_harness.runners.run_parsing_eval:main"
 eval-rag = "eval_harness.runners.run_rag_eval:main"

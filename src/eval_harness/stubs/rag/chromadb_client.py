@@ -87,6 +87,9 @@ class ChromaDBManager:
         This method uses the SentenceTransformers embedding function configured
         with EMBEDDING_MODEL (all-MiniLM-L6-v2) which produces 384-dim vectors.
 
+        Note: ChromaDB manages its own embedder for collection operations.
+        This is separate from the shared embedder used for RAG retrieval/RAGAS.
+
         Args:
             name: Collection name identifier.
 

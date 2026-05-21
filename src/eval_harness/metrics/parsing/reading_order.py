@@ -191,7 +191,6 @@ def ard_weighted_score(
         total_weighted_distance += distance * weight
 
     # Normalize weighted ARD to [0, 1] range
-    n_squared = n * n
     weighted_ard = total_weighted_distance / n
     weighted_ard_norm = 1.0 - (weighted_ard / n)
 

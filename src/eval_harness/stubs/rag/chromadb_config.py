@@ -1,9 +1,9 @@
 """
 ChromaDB RAG configuration constants.
 
-NOTE: This is a reference stub implementation provided for demonstration purposes.
-It is not intended for production use. This module defines all configuration constants
-for the ChromaDB-backed RAG pipeline, including model names, dimensions, and version tracking.
+NOTE: Reference stub implementation for demonstration purposes.
+Not intended for production use. Defines all configuration constants
+for the ChromaDB-backed RAG pipeline, including model names and dimensions.
 """
 
 import os

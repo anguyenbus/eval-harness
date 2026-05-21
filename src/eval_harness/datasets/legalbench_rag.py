@@ -105,7 +105,7 @@ def load_legalbench_rag(
             yield (query_id, query_text, gold_spans, gold_answer_text)
             query_count += 1
 
-            # Slice limits: nano=12 per corpus (48 total), mini=194 per corpus (776 total)
+            # Slice limits: nano=12 per corpus, mini=194 per corpus
             queries_per_corpus = {"nano": 12, "mini": 194}.get(slice, None)
 
             if queries_per_corpus and query_count >= queries_per_corpus * (

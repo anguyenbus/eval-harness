@@ -434,7 +434,7 @@ def main() -> None:
 
     averages = {}
     if not df.empty:
-        # Filter out error rows (error column is NaN for no errors, or has error message)
+        # Filter out error rows (error column is NaN or empty)
         valid_df = df[df["error"].isna() | (df["error"] == "")]
         if len(valid_df) > 0:
             print("\nMetric averages:")

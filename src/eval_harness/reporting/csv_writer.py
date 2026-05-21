@@ -21,8 +21,10 @@ def write_results(results: list[dict[str, Any]], output_path: Path) -> None:
 
     Example:
         >>> results = [
-        ...     {"query_id": "q001", "question_id": "f1", "score": 0.95, "label": "pass", "error": ""},
-        ...     {"query_id": "q002", "question_id": "recall", "score": 0.80, "label": "fail", "error": ""}
+        ...     {"query_id": "q001", "question_id": "f1", "score": 0.95,
+        ...      "label": "pass", "error": ""},
+        ...     {"query_id": "q002", "question_id": "recall", "score": 0.80,
+        ...      "label": "fail", "error": ""}
         ... ]
         >>> write_results(results, Path("results.csv"))
 

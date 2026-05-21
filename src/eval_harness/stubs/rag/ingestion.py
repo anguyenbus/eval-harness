@@ -18,7 +18,6 @@ from rich.progress import Progress
 
 from eval_harness.stubs.rag.chromadb_config import BATCH_SIZE
 from eval_harness.stubs.rag.chunker import FixedChunker
-from eval_harness.stubs.rag.embedder import SentenceTransformersEmbedder
 
 console = Console()
 
@@ -36,7 +35,7 @@ class DocumentIngester:
 
     Attributes:
         _chunker: FixedChunker for text chunking.
-        _embedder: SentenceTransformersEmbedder for embedding generation.
+        _embedder: Embedder with .embed() method for embedding generation.
 
     Example:
         >>> ingester = DocumentIngester(chunker, embedder)
@@ -50,15 +49,13 @@ class DocumentIngester:
 
     __slots__ = ("_chunker", "_embedder")
 
-    def __init__(
-        self, chunker: FixedChunker, embedder: SentenceTransformersEmbedder
-    ) -> None:
+    def __init__(self, chunker: FixedChunker, embedder: Any) -> None:
         """
         Initialize document ingester.
 
         Args:
             chunker: FixedChunker for text chunking.
-            embedder: SentenceTransformersEmbedder for embedding generation.
+            embedder: Any embedder with .embed() method.
 
         """
         self._chunker = chunker
@@ -108,8 +105,8 @@ class DocumentIngester:
             "errors": 0,
         }
 
-        # Pre-embedding optimization: collect all chunks first, then batch embed
-        # This is much faster than letting ChromaDB call the embedding function per-chunk
+        # Pre-embedding optimization: collect all chunks, then batch embed
+        # Faster than letting ChromaDB call embedding function per-chunk
         all_chunks: list[dict[str, Any]] = []
 
         with Progress() as progress:

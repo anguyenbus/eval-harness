@@ -52,14 +52,12 @@ class TableTree(Tree):
     def bracket(self) -> str:
         """Show tree using brackets notation."""
         if self.tag == "td":
-            result = '"tag": %s, "colspan": %d, "rowspan": %d, "text": %s' % (
-                self.tag,
-                self.colspan,
-                self.rowspan,
-                self.content,
+            result = (
+                f'"tag": {self.tag}, "colspan": {self.colspan}, '
+                f'"rowspan": {self.rowspan}, "text": {self.content}'
             )
         else:
-            result = '"tag": %s' % self.tag
+            result = f'"tag": {self.tag}'
         for child in self.children:
             result += child.bracket()
         return f"{{{result}}}"
@@ -110,13 +108,13 @@ class TEDSEvaluator:
 
     def tokenize(self, node):
         """Tokenize table cells."""
-        self.__tokens__.append("<%s>" % node.tag)
+        self.__tokens__.append(f"<{node.tag}>")
         if node.text is not None:
             self.__tokens__ += list(node.text)
         for n in node.getchildren():
             self.tokenize(n)
         if node.tag != "unk":
-            self.__tokens__.append("</%s>" % node.tag)
+            self.__tokens__.append(f"</{node.tag}>")
         if node.tag != "td" and node.tail is not None:
             self.__tokens__ += list(node.tail)
 

@@ -28,18 +28,30 @@ from eval_harness.stubs.rag.generator import ClaudeGenerator
 from eval_harness.stubs.rag.ingestion import DocumentIngester
 from eval_harness.stubs.rag.retriever import SemanticRetriever
 from eval_harness.stubs.rag.schema_conformance import validate_rag_output
-from eval_harness.stubs.rag.tracing import PhoenixTracer
 
 console = Console()
 
 # Global cached instances (created once, reused for all queries)
 _cached_embedder: Any = None
 _cached_generator: Any = None
+_external_embedder: Any = None  # Shared embedder from outside (e.g., for RAGAS)
+
+
+def set_external_embedder(embedder: Any) -> None:
+    """Set external embedder to be shared with RAGAS (avoids duplicate model loads)."""
+    global _external_embedder
+    _external_embedder = embedder
 
 
 def _get_embedder() -> Any:
-    """Get cached embedder instance (lazy load, cached after first use)."""
-    global _cached_embedder
+    """Get embedder - prefers external shared, falls back to cached."""
+    global _external_embedder, _cached_embedder
+
+    # Use shared embedder if available (e.g., from RAGAS)
+    if _external_embedder is not None:
+        return _external_embedder
+
+    # Otherwise, create and cache local embedder
     if _cached_embedder is None:
         from eval_harness.stubs.rag.embedder import SentenceTransformersEmbedder
 
@@ -60,6 +72,8 @@ def query(
     corpus_dir: Path,
     top_k: int = DEFAULT_TOP_K,
     force_reingest: bool = False,
+    phoenix_trace_id: str | None = None,
+    embedder: Any = None,
 ) -> dict[str, Any]:
     """
     Query the ChromaDB-backed RAG system.
@@ -82,6 +96,10 @@ def query(
         corpus_dir: Path to document corpus directory.
         top_k: Number of chunks to retrieve. Default: 5.
         force_reingest: If True, clear and re-ingest the collection. Default: False.
+        phoenix_trace_id: Optional Phoenix trace ID for observability. Default: None.
+        embedder: Optional shared embedder instance. If provided, used instead of
+            creating a new embedder. Useful for sharing with RAGAS to avoid
+            duplicate model loads. Default: None (creates local embedder).
 
     Returns:
         Dictionary conforming to rag_query_output.schema.json with:
@@ -90,7 +108,6 @@ def query(
             - query: Query metadata
             - answer: Generated answer with citations
             - retrieved_chunks: All retrieved chunks in rank order
-            - trace: Phoenix trace IDs (if available)
             - timings_ms: Per-stage latency
 
     Raises:
@@ -100,19 +117,16 @@ def query(
     """
     total_start = time.perf_counter()
 
+    # Set external embedder if provided (shared with RAGAS)
+    if embedder is not None:
+        set_external_embedder(embedder)
+
     # Import classes here to avoid circular imports
     from eval_harness.stubs.rag.chunker import FixedChunker
 
     # Generate query_id from question hash
     query_hash = hashlib.md5(question.encode()).hexdigest()[:8]
     query_id = f"chromadb_{query_hash}"
-
-    # Initialize tracer
-    tracer = PhoenixTracer(
-        endpoint="http://localhost:6006",
-        project_name="eval-harness",
-    )
-    trace_context = tracer.start_trace(question)
 
     try:
         # Initialize ChromaDB manager
@@ -127,7 +141,8 @@ def query(
         # Handle force reingest
         if force_reingest and collection_exists:
             console.print(
-                f"[INFO] Force reingest requested, deleting collection '{collection_name}'"
+                f"[INFO] Force reingest requested, deleting collection "
+                f"'{collection_name}'"
             )
             manager.delete_collection(collection_name)
             collection_exists = False
@@ -197,19 +212,14 @@ def query(
             },
         }
 
-        # Add trace context if available
-        if trace_context.get("trace_id"):
+        # Add trace context if available (optional, for backward compatibility)
+        if phoenix_trace_id:
             output["trace"] = {
-                "trace_id": trace_context["trace_id"],
-                "span_id": trace_context.get("span_id", ""),
-                "phoenix_project": "eval-harness",
+                "trace_id": phoenix_trace_id,
             }
 
         # Validate against schema
         validate_rag_output(output)
-
-        # End trace
-        tracer.end_trace(trace_context["trace_id"], output)
 
         return output
 

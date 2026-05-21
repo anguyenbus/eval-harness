@@ -20,7 +20,9 @@ from pathlib import Path
 try:
     from huggingface_hub import snapshot_download
 except ImportError as err:
-    raise ImportError("huggingface_hub required. Install: pip install huggingface_hub") from err
+    raise ImportError(
+        "huggingface_hub required. Install: pip install huggingface_hub"
+    ) from err
 
 # HuggingFace dataset info
 HF_REPO = "opendatalab/OmniDocBench"
@@ -131,7 +133,8 @@ def copy_images(pages: list[dict], src_dir: Path, dst_dir: Path) -> int:
     return copied
 
 
-def main():
+def main() -> None:
+    """Download and filter OmniDocBench to English-only data."""
     parser = argparse.ArgumentParser(
         description="Download and filter OmniDocBench to English-only data"
     )
@@ -166,9 +169,7 @@ def main():
     with open(output_json, "w") as f:
         json.dump(filtered, f, indent=2)
 
-    print(
-        f"Filtered: {len(filtered)} pages with existing images (from {len(pages)} total)"
-    )
+    print(f"Filtered: {len(filtered)} pages (from {len(pages)} total)")
     print(f"JSON output: {output_json}")
 
     # Step 4: Copy images

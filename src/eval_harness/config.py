@@ -24,8 +24,8 @@ def expand_env_vars(value: str, default: str | None = None) -> str:
     If VAR_NAME is not set and no default is provided, raises ValueError.
 
     Args:
-        value: String potentially containing ${VAR_NAME} or ${VAR_NAME:-default} references.
-        default: Global default if env var is not set (overrides YAML defaults).
+        value: String containing ${VAR_NAME} or ${VAR_NAME:-default} references.
+        default: Global default if env var is not set.
 
     Returns:
         String with all environment variables expanded.
@@ -122,9 +122,8 @@ def load_config(config_path: Path, default_env_val: str | None = None) -> dict:
     # Check required sections
     missing_sections = REQUIRED_SECTIONS - set(config.keys())
     if missing_sections:
-        raise ValueError(
-            f"Missing required sections in config: {', '.join(sorted(missing_sections))}"
-        )
+        missing = ", ".join(sorted(missing_sections))
+        raise ValueError(f"Missing required sections in config: {missing}")
 
     # Expand environment variables recursively
     config = _expand_env_vars_recursive(config, default_env_val)

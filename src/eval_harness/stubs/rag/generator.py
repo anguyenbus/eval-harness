@@ -102,12 +102,17 @@ class OpenAIGenerator:
 
         context = "\n\n".join(context_parts)
 
-        system_prompt = """You are a helpful assistant that answers questions based on the provided context.
-When answering, you MUST cite your sources using the chunk_ids in square brackets like [chunk_id].
-For example: "The answer is [doc1_chunk_00000]."
-
-If the context doesn't contain enough information to answer the question confidently, say "I don't have enough information to answer this question."
-Set answer_supported to false in this case."""
+        system_prompt = (
+            "You are a helpful assistant that answers questions based on "
+            "the provided context.\n"
+            "When answering, you MUST cite your sources using the chunk_ids "
+            "in square brackets like [chunk_id].\n"
+            'For example: "The answer is [doc1_chunk_00000]."\n\n'
+            "If the context doesn't contain enough information to answer "
+            "the question confidently, say \"I don't have enough information "
+            'to answer this question."\n'
+            "Set answer_supported to false in this case."
+        )
 
         user_message = f"""Context:
 {context}

@@ -162,8 +162,7 @@ def load_legal_rag_bench(
     # Yield tuples up to limit
     count = 0
     for item in dataset:
-        # Map dataset fields to our expected format
-        # The isaacus/legal-rag-bench QA subset has: id, question, answer, relevant_passage_id
+        # Map dataset fields: has id, question, answer, relevant_passage_id
         query_text = item.get("question", "")
         reference_answer = item.get("answer", "")
         relevant_passage_id = item.get("relevant_passage_id", "")
