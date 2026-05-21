@@ -17,8 +17,9 @@ CHROMADB_PERSIST_DIR: Final[Path] = Path("data/chromadb/")
 EMBEDDING_MODEL: Final[str] = "sentence-transformers/all-MiniLM-L6-v2"
 EMBEDDING_DIM: Final[int] = 384
 
-# Generator model configuration (supports environment override)
-GENERATOR_MODEL: Final[str] = os.getenv("ANTHROPIC_MODEL", "claude-opus-4-7")
+# Generator model configuration (set via RAG_GENERATOR_MODEL env var)
+# Supports: openai models (gpt-4o, gpt-4o-mini), bedrock models, etc.
+GENERATOR_MODEL: Final[str] = os.getenv("RAG_GENERATOR_MODEL", "gpt-4o")
 
 # Pipeline version tracking
 PIPELINE_VERSION: Final[str] = "0.1.0-chromadb"

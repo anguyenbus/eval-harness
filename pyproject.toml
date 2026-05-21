@@ -41,7 +41,10 @@ dependencies = [
 [project.optional-dependencies]
 phoenix = [
     "arize-phoenix>=4.0.0",
-    "openinference-instrumentation>=0.1.0",
+    "openinference-instrumentation-openai>=0.1.0",
+]
+bedrock = [
+    "boto3>=1.0.0",
 ]
 
 [project.scripts]

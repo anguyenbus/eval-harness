@@ -59,6 +59,26 @@ def _process_query(
         timings = output.get("timings_ms", {})
         generated_answer = output.get("answer", {}).get("text", "")
 
+        # Record retrieval span in Phoenix (if enabled)
+        if phoenix_adapter and trace_id:
+            phoenix_adapter.start_retrieval_span(
+                trace_id=trace_id,
+                query_text=query_text,
+                chunks=retrieved_chunks,
+                k=len(retrieved_chunks),
+                timing_ms=timings.get("retrieval", 0),
+            )
+
+            # Record generation span
+            model = output.get("system_version", {}).get("generator_model", "unknown")
+            phoenix_adapter.start_generation_span(
+                trace_id=trace_id,
+                model=model,
+                prompt=query_text,
+                tokens=0,
+                timing_ms=timings.get("generation", 0),
+            )
+
         # Check if relevant passage was retrieved
         relevant_passage_retrieved = any(
             chunk.get("doc_id") == relevant_passage_id for chunk in retrieved_chunks
@@ -67,9 +87,15 @@ def _process_query(
         # Compute RAGAS metrics (always enabled)
         ragas_scores = ragas_evaluator.compute_metrics(output, gold_answer_text)
 
+        # Determine verdict
+        faithfulness = ragas_scores.get("faithfulness", 0.0)
+        verdict = "PASS" if faithfulness > 0.7 else "NEEDS_REVIEW"
+
         # Record evaluation span in Phoenix (if enabled)
         if phoenix_adapter and trace_id:
-            phoenix_adapter.start_evaluation_span(trace_id, ragas_scores)
+            phoenix_adapter.start_evaluation_span(
+                trace_id, ragas_scores, verdict=verdict
+            )
 
         # Prepare result row
         result = {
@@ -78,13 +104,11 @@ def _process_query(
             "gold_answer": gold_answer_text,
             "generated_answer": generated_answer,
             "relevant_passage_retrieved": relevant_passage_retrieved,
-            "faithfulness_score": ragas_scores.get("faithfulness", 0.0),
+            "faithfulness_score": faithfulness,
             "context_precision_score": ragas_scores.get("context_precision", 0.0),
             "context_recall_score": ragas_scores.get("context_recall", 0.0),
             "answer_relevancy_score": ragas_scores.get("answer_relevancy", 0.0),
-            "judge_verdict": "PASS"
-            if ragas_scores.get("faithfulness", 0.0) > 0.7
-            else "NEEDS_REVIEW",
+            "judge_verdict": verdict,
             "total_ms": timings.get("total", 0),
             "error": "",
         }

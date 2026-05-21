@@ -1280,9 +1280,12 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
+bedrock = [
+    { name = "boto3" },
+]
 phoenix = [
     { name = "arize-phoenix" },
-    { name = "openinference-instrumentation" },
+    { name = "openinference-instrumentation-openai" },
 ]
 
 [package.dev-dependencies]
@@ -1303,6 +1306,7 @@ requires-dist = [
     { name = "arize-phoenix", marker = "extra == 'phoenix'", specifier = ">=4.0.0" },
     { name = "beartype" },
     { name = "beautifulsoup4", specifier = ">=4" },
+    { name = "boto3", marker = "extra == 'bedrock'", specifier = ">=1.0.0" },
     { name = "chromadb" },
     { name = "datasets" },
     { name = "docling", specifier = ">=2" },
@@ -1314,7 +1318,7 @@ requires-dist = [
     { name = "lxml", specifier = ">=5" },
     { name = "nltk" },
     { name = "openai", specifier = ">=1.0.0" },
-    { name = "openinference-instrumentation", marker = "extra == 'phoenix'", specifier = ">=0.1.0" },
+    { name = "openinference-instrumentation-openai", marker = "extra == 'phoenix'", specifier = ">=0.1.0" },
     { name = "pandas" },
     { name = "pycocotools" },
     { name = "pydantic", specifier = ">=2" },
@@ -1328,7 +1332,7 @@ requires-dist = [
     { name = "torch" },
     { name = "torchmetrics", extras = ["detection"], specifier = ">=1" },
 ]
-provides-extras = ["phoenix"]
+provides-extras = ["phoenix", "bedrock"]
 
 [package.metadata.requires-dev]
 dev = [

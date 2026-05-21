@@ -13,6 +13,7 @@ Solution: Use tracer.start_as_current_span() which properly propagates context.
 
 from __future__ import annotations
 
+import json
 import time
 import uuid
 from contextlib import contextmanager
@@ -23,6 +24,9 @@ from beartype import beartype
 
 if TYPE_CHECKING:
     pass
+
+# OpenInference span kind attribute name
+OPENINFERENCE_SPAN_KIND = "openinference.span.kind"
 
 # Constants
 DEFAULT_ENDPOINT: Final[str] = "http://localhost:6006"
@@ -141,6 +145,9 @@ class PhoenixAdapter:
 
             self._tracer = self._tracer_provider.get_tracer("eval-harness")
 
+            # Instrument OpenAI to capture RAGAS's internal LLM calls
+            self._instrument_openai()
+
         except Exception as e:
             import sys
 
@@ -150,6 +157,26 @@ class PhoenixAdapter:
                 file=sys.stderr,
             )
             self._tracer = None
+
+    def _instrument_openai(self) -> None:
+        """
+        Instrument OpenAI to capture RAGAS internal LLM judge calls.
+
+        NOTE: RAGAS currently only supports OpenAI as the LLM backend.
+        When Bedrock support is added, we'll need to add Anthropic instrumentor.
+        """
+        try:
+            from openinference.instrumentation.openai import OpenAIInstrumentor
+
+            instrumentor = OpenAIInstrumentor()
+            if not instrumentor.is_instrumented_by_opentelemetry:
+                instrumentor.instrument()
+                print("[INFO] OpenAI instrumentor enabled")
+                print("       RAGAS internal LLM calls will appear in Phoenix traces")
+        except Exception as e:
+            import sys
+
+            print(f"[WARN] OpenAI instrumentation failed: {e}", file=sys.stderr)
 
     @beartype
     def is_connected(self) -> bool:
@@ -235,6 +262,7 @@ class PhoenixAdapter:
             if self._current_session_id:
                 with using_attributes(session_id=self._current_session_id):
                     with self._tracer.start_as_current_span(name="rag_query") as span:
+                        span.set_attribute(OPENINFERENCE_SPAN_KIND, "CHAIN")
                         span.set_attribute("question", question)
                         span.set_attribute("input", question)
                         self._active_root_span = span
@@ -244,6 +272,7 @@ class PhoenixAdapter:
                             self._active_root_span = None
             else:
                 with self._tracer.start_as_current_span(name="rag_query") as span:
+                    span.set_attribute(OPENINFERENCE_SPAN_KIND, "CHAIN")
                     span.set_attribute("question", question)
                     span.set_attribute("input", question)
                     self._active_root_span = span
@@ -274,11 +303,10 @@ class PhoenixAdapter:
         trace_id = str(uuid.uuid4())
 
         if self._tracer:
-            # Start the span without ending it
             span = self._tracer.start_span(name="rag_query")
+            span.set_attribute(OPENINFERENCE_SPAN_KIND, "CHAIN")
             span.set_attribute("question", question)
             span.set_attribute("input", question)
-            # Store for ending later
             self._active_root_span = span
 
         return trace_id
@@ -287,20 +315,20 @@ class PhoenixAdapter:
     def start_retrieval_span(
         self,
         trace_id: str,
-        embeddings: list[float] | list[list[float]],
+        query_text: str,
         chunks: list[dict[str, Any]],
         k: int,
         timing_ms: int | float,
     ) -> None:
         """
-        Create retrieval span.
+        Create retrieval span (RETRIEVER kind).
 
         If called within rag_query_span context, becomes a child span automatically.
 
         Args:
             trace_id: Parent trace ID (for tracking).
-            embeddings: Embedding vectors.
-            chunks: Retrieved chunks.
+            query_text: The query text used for retrieval.
+            chunks: Retrieved chunks with doc_id, text, score.
             k: Number of chunks retrieved.
             timing_ms: Retrieval time.
 
@@ -308,15 +336,21 @@ class PhoenixAdapter:
         if not self._tracer:
             return
 
-        # Simply use start_as_current_span - if we're within rag_query_span context,
-        # it will automatically become a child. Otherwise, it's a root span.
         with self._tracer.start_as_current_span(name="retrieval") as span:
+            span.set_attribute(OPENINFERENCE_SPAN_KIND, "RETRIEVER")
+            span.set_attribute("input.value", query_text)
             span.set_attribute("retrieval.k", k)
-            span.set_attribute("retrieval.num_chunks", len(chunks))
             span.set_attribute("retrieval.timing_ms", timing_ms)
+
+            # OpenInference retrieval attributes
             for i, chunk in enumerate(chunks[:k]):
                 text = chunk.get("text", "")
-                span.set_attribute(f"retrieval.chunk.{i}.text", text[:500])
+                doc_id = chunk.get("doc_id", f"doc_{i}")
+                score = chunk.get("score", 0.0)
+
+                span.set_attribute(f"retrieval.documents.{i}.document.content", text)
+                span.set_attribute(f"retrieval.documents.{i}.document.id", doc_id)
+                span.set_attribute(f"retrieval.documents.{i}.score", float(score))
 
     @beartype
     def start_generation_span(
@@ -324,11 +358,11 @@ class PhoenixAdapter:
         trace_id: str,
         model: str,
         prompt: str,
-        tokens: int,
-        timing_ms: int | float,
+        tokens: int = 0,
+        timing_ms: int | float = 0,
     ) -> None:
         """
-        Create generation span.
+        Create generation span (CLIENT kind - calls LLM API).
 
         If called within rag_query_span context, becomes a child span automatically.
 
@@ -336,35 +370,38 @@ class PhoenixAdapter:
             trace_id: Parent trace ID (for tracking).
             model: LLM model name.
             prompt: The prompt text.
-            tokens: Token count.
+            tokens: Token count (total = prompt + completion).
             timing_ms: Generation time.
 
         """
         if not self._tracer:
             return
 
-        # Simply use start_as_current_span - if we're within rag_query_span context,
-        # it will automatically become a child. Otherwise, it's a root span.
         with self._tracer.start_as_current_span(name="generation") as span:
+            span.set_attribute(OPENINFERENCE_SPAN_KIND, "LLM")
             span.set_attribute("llm.model_name", model)
-            span.set_attribute("llm.token_count", tokens)
+            span.set_attribute("llm.token_count.total", tokens)
             span.set_attribute("llm.timing_ms", timing_ms)
             span.set_attribute("llm.prompt_length", len(prompt))
+            invocation_params = json.dumps({"model": model, "temperature": 0})
+            span.set_attribute("llm.invocation_parameters", invocation_params)
 
     @beartype
     def start_evaluation_span(
         self,
         trace_id: str,
         ragas_metrics: dict[str, float],
+        verdict: str | None = None,
     ) -> None:
         """
-        Create evaluation span.
+        Create evaluation span (EVALUATOR kind - LLM judge via RAGAS).
 
         If called within rag_query_span context, becomes a child span automatically.
 
         Args:
             trace_id: Parent trace ID (for tracking).
             ragas_metrics: Dictionary of RAGAS metric scores.
+            verdict: Optional verdict string (PASS/NEEDS_REVIEW/ERROR).
 
         """
         # Store for export
@@ -378,9 +415,20 @@ class PhoenixAdapter:
         if not self._tracer:
             return
 
-        # Simply use start_as_current_span - if we're within rag_query_span context,
-        # it will automatically become a child. Otherwise, it's a root span.
-        with self._tracer.start_as_current_span(name="evaluation") as span:
+        with self._tracer.start_as_current_span(name="evaluator") as span:
+            span.set_attribute(OPENINFERENCE_SPAN_KIND, "EVALUATOR")
+
+            # Add verdict if provided
+            if verdict:
+                span.set_attribute("evaluation.verdict", verdict)
+
+            # Build output summary for Phoenix UI
+            metrics_summary = json.dumps(
+                {k: round(v, 4) for k, v in ragas_metrics.items()}
+            )
+            span.set_attribute("output.value", metrics_summary)
+
+            # Individual metric scores
             for metric_name, score in ragas_metrics.items():
                 span.set_attribute(f"evaluation.{metric_name}", score)
 
