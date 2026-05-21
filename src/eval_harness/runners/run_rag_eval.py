@@ -7,7 +7,7 @@ Usage:
 NOTE: The stub-local RAG option uses a ChromaDB-based reference implementation
 for demonstration purposes. It is not intended for production use.
 
-RAGAS LLM-judge metrics (Faithfulness, ContextPrecision, ContextRecall,
+DeepEval LLM-judge metrics (Faithfulness, ContextualPrecision, ContextualRecall,
 AnswerRelevancy) are enabled by default and require OPENAI_API_KEY to be set.
 """
 
@@ -37,11 +37,13 @@ def _process_query(
     gold_answer_text: str,
     corpus_dir: Path,
     rag_adapter: RagAdapter,
-    ragas_evaluator: Any,
+    evaluator: Any,
     writer: Any,
     csv_file: Any,
     phoenix_adapter: Any,
     trace_id: str | None,
+    framework_version: str | None = None,
+    judge_model: str | None = None,
 ) -> tuple[bool, int]:  # (success, trace_count_increment)
     """
     Process a single query and write result to CSV.
@@ -84,17 +86,17 @@ def _process_query(
             chunk.get("doc_id") == relevant_passage_id for chunk in retrieved_chunks
         )
 
-        # Compute RAGAS metrics (always enabled)
-        ragas_scores = ragas_evaluator.compute_metrics(output, gold_answer_text)
+        # Compute metrics (DeepEval by default)
+        metric_scores = evaluator.compute_metrics_with_timing(output, gold_answer_text)
 
         # Determine verdict
-        faithfulness = ragas_scores.get("faithfulness", 0.0)
+        faithfulness = metric_scores.get("faithfulness", 0.0)
         verdict = "PASS" if faithfulness > 0.7 else "NEEDS_REVIEW"
 
         # Record evaluation span in Phoenix (if enabled)
         if phoenix_adapter and trace_id:
             phoenix_adapter.start_evaluation_span(
-                trace_id, ragas_scores, verdict=verdict
+                trace_id, metric_scores, verdict=verdict
             )
 
         # Prepare result row
@@ -105,13 +107,23 @@ def _process_query(
             "generated_answer": generated_answer,
             "relevant_passage_retrieved": relevant_passage_retrieved,
             "faithfulness_score": faithfulness,
-            "context_precision_score": ragas_scores.get("context_precision", 0.0),
-            "context_recall_score": ragas_scores.get("context_recall", 0.0),
-            "answer_relevancy_score": ragas_scores.get("answer_relevancy", 0.0),
+            "context_precision_score": metric_scores.get("context_precision", 0.0),
+            "context_recall_score": metric_scores.get("context_recall", 0.0),
+            "answer_relevancy_score": metric_scores.get("answer_relevancy", 0.0),
             "judge_verdict": verdict,
             "total_ms": timings.get("total", 0),
             "error": "",
         }
+
+        # Add metadata columns if provided
+        if framework_version is not None:
+            result["framework_version"] = framework_version
+        if judge_model is not None:
+            result["llm_judge_model"] = judge_model
+        if "metric_computation_time_ms" in metric_scores:
+            result["metric_computation_time_ms"] = metric_scores[
+                "metric_computation_time_ms"
+            ]
 
         # Write result
         writer.writerow(result)
@@ -133,12 +145,20 @@ def _process_query(
             "total_ms": 0,
             "error": str(e),
         }
+
+        # Add metadata columns with empty values if error
+        if framework_version is not None:
+            error_result["framework_version"] = ""
+        if judge_model is not None:
+            error_result["llm_judge_model"] = ""
+        error_result["metric_computation_time_ms"] = 0
+
         writer.writerow(error_result)
         csv_file.flush()
         return False, 0
 
 
-def load_dataset(slice_name: str, config: dict):
+def load_dataset(slice_name: str, config: dict) -> Any:
     """
     Load Legal RAG Bench dataset by slice.
 
@@ -222,7 +242,7 @@ def main() -> None:
     import argparse
 
     parser = argparse.ArgumentParser(
-        description="Evaluate RAG systems on Legal RAG Bench with RAGAS metrics"
+        description="Evaluate RAG systems on Legal RAG Bench with DeepEval metrics"
     )
     parser.add_argument(
         "--slice",
@@ -331,7 +351,7 @@ def main() -> None:
 
     corpus_dir = Path(dataset_config.get("path", "data/rag/legal_rag_bench"))
 
-    # Create shared embedder (used by both RAG retrieval and RAGAS)
+    # Create shared embedder (used by both RAG retrieval and DeepEval)
     try:
         from eval_harness.adapters.embeddings import get_embedder
 
@@ -347,23 +367,39 @@ def main() -> None:
         print(f"ERROR: Could not initialize embedder: {e}")
         sys.exit(1)
 
-    # Initialize RAGAS evaluator (always enabled)
+    # Initialize DeepEval evaluator (always enabled)
     try:
-        from eval_harness.adapters.ragas_adapter import RagasEvaluator
+        from eval_harness.adapters.deepeval_adapter import DeepEvalEvaluator
+        from eval_harness.metrics.deepeval_config import get_deepeval_config
 
-        ragas_config = dataset_config.get("ragas", {})
-        judge_model = ragas_config.get("judge_model", "gpt-4o")
-        llm_provider = ragas_config.get("judge_model_provider", "openai")
+        deepeval_config = get_deepeval_config(config)
+        judge_model = deepeval_config["judge_model"]
+        llm_provider = deepeval_config["judge_model_provider"]
+        temperature = deepeval_config["temperature"]
+        max_concurrent = deepeval_config["max_concurrent"]
 
-        ragas_evaluator = RagasEvaluator(
+        evaluator = DeepEvalEvaluator(
             llm_provider=llm_provider,
             judge_model=judge_model,
+            temperature=temperature,
+            max_concurrent=max_concurrent,
             embedder=embedder,
         )
-        print(f"RAGAS evaluation enabled with {llm_provider}/{judge_model}")
+
+        # Get framework version for metadata
+        try:
+            import deepeval
+
+            framework_version = deepeval.__version__
+        except (ImportError, AttributeError):
+            framework_version = "unknown"
+
+        print(f"DeepEval evaluation enabled with {llm_provider}/{judge_model}")
+        print(f"Framework version: {framework_version}")
+        print(f"Max concurrent evaluations: {max_concurrent}")
     except Exception as e:
-        print(f"ERROR: Could not initialize RAGAS evaluator: {e}")
-        print("RAGAS metrics are required. Please set OPENAI_API_KEY.")
+        print(f"ERROR: Could not initialize DeepEval evaluator: {e}")
+        print("DeepEval metrics are required. Please set OPENAI_API_KEY.")
         sys.exit(1)
 
     # Get RAG system
@@ -388,7 +424,8 @@ def main() -> None:
     )
     file_exists = output_file.exists()
 
-    # Define CSV columns - RAGAS metrics + Legal RAG Bench specific only
+    # Define CSV columns - maintain backward compatibility with RAGAS schema
+    # plus additional metadata columns for DeepEval
     fieldnames = [
         "query_id",
         "question",
@@ -402,6 +439,10 @@ def main() -> None:
         "judge_verdict",
         "total_ms",
         "error",
+        # Additional metadata columns
+        "framework_version",
+        "metric_computation_time_ms",
+        "llm_judge_model",
     ]
 
     # Open CSV for incremental appending
@@ -426,6 +467,9 @@ def main() -> None:
             "slice": args.slice,
             "top_k": args.top_k,
             "rag_system": args.rag,
+            "evaluation_framework": "deepeval",
+            "framework_version": framework_version,
+            "judge_model": judge_model,
         }
         with phoenix_adapter.eval_run_span(
             f"legal-rag-bench-{args.slice}",
@@ -447,11 +491,13 @@ def main() -> None:
                         gold_answer_text,
                         corpus_dir,
                         rag_adapter,
-                        ragas_evaluator,
+                        evaluator,
                         writer,
                         csv_file,
                         phoenix_adapter,
                         trace_id,
+                        framework_version=framework_version,
+                        judge_model=judge_model,
                     )
                     if success:
                         processed += 1
@@ -468,11 +514,13 @@ def main() -> None:
                 gold_answer_text,
                 corpus_dir,
                 rag_adapter,
-                ragas_evaluator,
+                evaluator,
                 writer,
                 csv_file,
                 None,
                 None,
+                framework_version=framework_version,
+                judge_model=judge_model,
             )
             if success:
                 processed += 1
@@ -523,6 +571,9 @@ def main() -> None:
         "total_processed": processed,
         "errors": errors,
         "top_k": args.top_k,
+        "evaluation_framework": "deepeval",
+        "framework_version": framework_version,
+        "judge_model": judge_model,
     }
 
     # Add Phoenix info to summary if enabled
