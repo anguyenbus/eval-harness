@@ -2,10 +2,6 @@
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
-
-import pytest
-
 
 class TestSpanInstrumentation:
     """Test span creation and hierarchy for RAG pipeline stages."""

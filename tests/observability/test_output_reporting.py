@@ -3,11 +3,7 @@
 from __future__ import annotations
 
 import json
-from io import StringIO
-from pathlib import Path
-from unittest.mock import MagicMock, patch
-
-import pytest
+from unittest.mock import MagicMock
 
 
 class TestOutputReporting:
@@ -90,7 +86,7 @@ class TestOutputReporting:
             )
 
         # Verify CSV format is unchanged
-        with open(csv_file, "r") as f:
+        with open(csv_file) as f:
             reader = csv.DictReader(f)
             rows = list(reader)
             assert len(rows) == 1
@@ -121,7 +117,7 @@ class TestOutputReporting:
             json.dump(summary, f)
 
         # Verify JSON includes Phoenix info
-        with open(json_file, "r") as f:
+        with open(json_file) as f:
             loaded = json.load(f)
             assert "phoenix" in loaded
             assert loaded["phoenix"]["enabled"] is True

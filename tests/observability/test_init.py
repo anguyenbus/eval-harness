@@ -38,9 +38,7 @@ class TestOptionalDependencyImport:
         with pytest.raises(ImportError, match="cannot import name"):
             from eval_harness.observability import PhoenixAdapter  # noqa: F401
 
-    @pytest.mark.skipif(
-        sys.version_info < (3, 13), reason="Requires Python 3.13+"
-    )
+    @pytest.mark.skipif(sys.version_info < (3, 13), reason="Requires Python 3.13+")
     def test_phoenix_adapter_class_structure(self):
         """Test PhoenixAdapter class structure when Phoenix is available."""
         # This test will only pass if Phoenix is installed

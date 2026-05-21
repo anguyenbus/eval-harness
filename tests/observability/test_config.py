@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import os
-from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -122,9 +121,7 @@ class TestPhoenixConfiguration:
         assert adapter1._endpoint == "http://localhost:6006"
 
         # HTTPS endpoint
-        adapter2 = PhoenixAdapter(
-            endpoint="https://phoenix.example.com", enabled=False
-        )
+        adapter2 = PhoenixAdapter(endpoint="https://phoenix.example.com", enabled=False)
         assert adapter2._endpoint == "https://phoenix.example.com"
 
     def test_cli_precedence_over_yaml(self, tmp_path):

@@ -2,9 +2,6 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-from unittest.mock import MagicMock, patch
-
 import pytest
 
 from eval_harness.observability.phoenix_adapter import (

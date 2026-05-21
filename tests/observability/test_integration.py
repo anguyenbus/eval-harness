@@ -3,10 +3,8 @@
 from __future__ import annotations
 
 import os
-from pathlib import Path
 from unittest.mock import patch
 
-import pytest
 import yaml
 
 
@@ -74,9 +72,7 @@ class TestPhoenixIntegration:
         }
         config_file.write_text(yaml.dump(config_data))
 
-        with patch.dict(
-            os.environ, {"PHOENIX_ENDPOINT": "http://env-endpoint:6006"}
-        ):
+        with patch.dict(os.environ, {"PHOENIX_ENDPOINT": "http://env-endpoint:6006"}):
             from eval_harness.config import load_config
             from eval_harness.observability.config import get_phoenix_config
 
