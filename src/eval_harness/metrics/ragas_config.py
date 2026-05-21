@@ -14,11 +14,16 @@ Metrics supported:
 from __future__ import annotations
 
 import os
+from functools import lru_cache
 from typing import Any, Final
 
 from beartype import beartype
 from beartype.typing import Dict
+from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
+
+# Load .env file if present
+load_dotenv()
 
 # Constants
 OPENAI_API_KEY_ENV: Final[str] = "OPENAI_API_KEY"
@@ -41,7 +46,7 @@ def _get_openai_api_key() -> str:
     api_key = os.environ.get(OPENAI_API_KEY_ENV)
     if not api_key:
         raise ValueError(
-            f"{OPENAI_API_KEY_ENV} environment variable must be set to use RAGAS metrics. "
+            f"{OPENAI_API_KEY_ENV} environment variable must be set to use RAGAS. "
             "Set it with: export OPENAI_API_KEY=your-key-here"
         )
     return api_key
@@ -123,8 +128,8 @@ def get_embeddings_backend(
     Get embeddings backend for RAGAS evaluation.
 
     Args:
-        provider: Embeddings provider ("huggingface" or "openai"). Default: "huggingface".
-        model: Embedding model name. Default: sentence-transformers/all-MiniLM-L6-v2.
+        provider: Embeddings provider ("huggingface" or "openai").
+        model: Embedding model name.
 
     Returns:
         Wrapped embeddings instance compatible with RAGAS.
@@ -134,11 +139,10 @@ def get_embeddings_backend(
 
     """
     if provider == "huggingface":
-        from ragas.embeddings import HuggingFaceEmbeddings
-
-        # Force CPU to avoid CUDA errors on unsupported GPUs
-        return HuggingFaceEmbeddings(model=model, device="cpu")
+        # Use cached embedder for HuggingFace
+        return _get_ragas_embeddings_backend(model=model, provider="huggingface")
     elif provider == "openai":
+        # OpenAI embedders are lightweight API clients, no caching needed
         from ragas.embeddings import embedding_factory
 
         api_key = _get_openai_api_key()
@@ -153,6 +157,53 @@ def get_embeddings_backend(
         )
 
 
+@lru_cache(maxsize=4)
+def _get_ragas_embeddings_backend(model: str, provider: str = "huggingface") -> Any:
+    """
+    Get cached RAGAS embeddings backend (HuggingFace only).
+
+    RAGAS's embedding_factory doesn't cache, so we cache here to avoid
+    re-loading weights on every call. Forces CPU to avoid CUDA errors.
+
+    Note: Only caches HuggingFace embedders. OpenAI embedders handle
+    their own caching at the API level.
+
+    Args:
+        model: Model name.
+        provider: Provider name - only "huggingface" is cached.
+
+    Returns:
+        Cached RAGAS-compatible embedder.
+
+    """
+    from ragas.embeddings import HuggingFaceEmbeddings
+
+    # Force CPU to avoid CUDA errors on unsupported GPUs
+    return HuggingFaceEmbeddings(model=model, device="cpu")
+
+
+def _wrap_embedder_for_ragas(embedder: Any) -> Any:
+    """
+    Wrap shared embedder for RAGAS compatibility.
+
+    NOTE: RAGAS requires its own HuggingFaceEmbeddings class with 'modern' interface.
+    Our shared embedder is not compatible, so we create RAGAS embedder here.
+    This is the 3rd load and is unavoidable with RAGAS's current architecture.
+
+    Args:
+        embedder: Shared embedder instance (not used due to interface mismatch).
+
+    Returns:
+        RAGAS-compatible embedder (will load weights).
+
+    """
+    # RAGAS requires HuggingFaceEmbeddings from ragas.embeddings
+    # Our shared embedder doesn't meet this requirement
+    return _get_ragas_embeddings_backend(
+        model="sentence-transformers/all-MiniLM-L6-v2", provider="huggingface"
+    )
+
+
 @beartype
 def create_ragas_metrics(
     llm_provider: str = "openai",
@@ -160,6 +211,7 @@ def create_ragas_metrics(
     temperature: float = DEFAULT_TEMPERATURE,
     embeddings_provider: str = "huggingface",
     embeddings_model: str = "sentence-transformers/all-MiniLM-L6-v2",
+    embedder: Any = None,
 ) -> Dict[str, Any]:
     """
     Create RAGAS metrics with configured LLM backend.
@@ -168,8 +220,9 @@ def create_ragas_metrics(
         llm_provider: LLM provider ("openai" or "bedrock"). Default: "openai".
         judge_model: Judge model name. Default: gpt-4o.
         temperature: Sampling temperature. Default: 0.0.
-        embeddings_provider: Embeddings provider ("huggingface" or "openai"). Default: "huggingface".
-        embeddings_model: Embeddings model name. Default: sentence-transformers/all-MiniLM-L6-v2.
+        embeddings_provider: Embeddings provider ("huggingface" or "openai").
+        embeddings_model: Embedding model name.
+        embedder: Optional shared embedder instance.
 
     Returns:
         Dictionary mapping metric names to instantiated RAGAS metric objects.
@@ -193,10 +246,14 @@ def create_ragas_metrics(
     )
 
     # Get embeddings backend (required for AnswerRelevancy)
-    embeddings = get_embeddings_backend(
-        provider=embeddings_provider,
-        model=embeddings_model,
-    )
+    # Use shared embedder if provided, otherwise create new one
+    if embedder is not None:
+        embeddings = _wrap_embedder_for_ragas(embedder)
+    else:
+        embeddings = get_embeddings_backend(
+            provider=embeddings_provider,
+            model=embeddings_model,
+        )
 
     # Create metrics with LLM backend
     return {

@@ -8,6 +8,9 @@ Evaluation framework for document parsing and RAG systems. Supports deterministi
 # Install dependencies
 uv sync
 
+# (Optional) Install Phoenix for observability
+uv sync --all-extras
+
 # Set API keys for RAGAS evaluation
 export OPENAI_API_KEY=sk-...
 export HF_TOKEN=...  # For Legal RAG Bench (optional if ~/.huggingface/token exists)
@@ -19,7 +22,7 @@ uv run python scripts/prepare_legal_rag_bench_corpus.py
 uv run eval-parsing --dataset dp_bench --parser fast
 
 # Run RAG evaluation (RAGAS LLM-judge metrics)
-uv run eval-rag --slice nano
+uv run eval-rag --slice nano --rag stub-local
 
 # View results
 cat results/*.csv
@@ -135,16 +138,16 @@ Evaluate RAG systems on legal reasoning questions using RAGAS LLM-judge metrics.
 
 ```bash
 # Nano slice (10 questions, default top-k=5)
-uv run eval-rag --slice nano
+uv run eval-rag --slice nano --rag stub-local
 
 # Full evaluation with custom retrieval depth
-uv run eval-rag --slice full --top-k 10
+uv run eval-rag --slice full --rag stub-local --top-k 10
 
 # Force re-ingestion of corpus into ChromaDB
-uv run eval-rag --slice nano --force-reingest
+uv run eval-rag --slice nano --rag stub-local --force-reingest
 ```
 
-**Note:** The stub option (ChromaDB-based reference implementation) is used by default. To evaluate your own RAG system, implement a custom query function and integrate it via the `RagAdapter`.
+**Note:** `--rag` is required. The `stub-local` option uses a ChromaDB-based reference implementation for demonstration. To evaluate your own RAG system, implement a custom query function and integrate it via the `RagAdapter`.
 
 ### RAGAS Metrics
 
@@ -161,6 +164,67 @@ All metrics use LLM-as-a-judge (gpt-4o) for evaluation. See [docs/legal-rag-benc
 
 - **Relevant Passage Retrieved** - Binary: was the gold passage retrieved?
 - **Latency** - Total query time (ms)
+
+## Phoenix Observability (Optional)
+
+eval-harness integrates with [Arize Phoenix](https://docs.arize.com/phoenix) for RAG pipeline tracing and visualization.
+
+### Installation
+
+```bash
+uv sync --all-extras  # Install phoenix dependencies
+```
+
+### Usage
+
+```bash
+# Start Phoenix server (runs on http://localhost:6006)
+python -m phoenix.server.main serve
+
+# Run evaluation with Phoenix enabled
+uv run eval-rag --slice nano --rag stub-local --enable-phoenix
+
+# View traces in browser
+open http://localhost:6006
+```
+
+### Span Hierarchy
+
+Phoenix creates nested spans showing each stage of RAG evaluation:
+
+| Span Kind | Description |
+|-----------|-------------|
+| **CHAIN** | Parent/root span grouping related operations (eval_run, rag_query) |
+| **RETRIEVER** | Document retrieval from vector store |
+| **LLM** | LLM generation step |
+| **EVALUATOR** | RAGAS LLM-judge evaluation |
+
+**Example trace structure:**
+```
+eval_run (CHAIN)
+└── rag_query (CHAIN)
+    ├── retrieval (RETRIEVER)
+    ├── generation (LLM)
+    └── evaluator (EVALUATOR)
+```
+
+### Features
+
+- **Session grouping**: All queries grouped by evaluation run
+- **Latency tracking**: Per-component timing (retrieval, generation, evaluation)
+- **RAGAS internal traces**: OpenAI instrumentation shows LLM judge API calls
+- **Fallback**: If Phoenix unavailable, traces buffered to Parquet
+
+### Configuration
+
+Edit `eval_config.yaml` for Phoenix settings:
+
+```yaml
+phoenix:
+  enabled: true
+  endpoint: http://localhost:6006
+  export_path: /tmp/phoenix_traces
+```
 
 ## Results
 
@@ -281,6 +345,10 @@ datasets:
 - `chromadb` - Vector store (stub implementation)
 - `openai` - LLM judge (set `OPENAI_API_KEY` in `.env`)
 - `datasets` - HuggingFace dataset loader
+
+**Observability (optional):**
+- `arize-phoenix>=4.0.0` - RAG pipeline tracing and visualization
+- `openinference-instrumentation-openai` - OpenAI instrumentation for RAGAS internal traces
 
 ## Using Your Own RAG System
 

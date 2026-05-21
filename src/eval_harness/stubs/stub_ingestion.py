@@ -67,7 +67,10 @@ def query(question: str, corpus_dir: Path) -> dict[str, Any]:
                 "element_ids": [f"elem_{query_hash:04d}_001"],
                 "char_span": [0, 150],
                 "page_indices": [0],
-                "text": "This is a stub retrieved chunk. In a real RAG system, this would contain relevant content from the corpus.",
+                "text": (
+                    "This is a stub retrieved chunk. In a real RAG system, "
+                    "this would contain relevant content from the corpus."
+                ),
             }
         ],
         "timings_ms": {

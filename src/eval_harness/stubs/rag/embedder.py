@@ -1,8 +1,8 @@
 """
 SentenceTransformers embedding generation for RAG.
 
-NOTE: This is a reference stub implementation provided for demonstration purposes.
-It is not intended for production use. This module provides the SentenceTransformersEmbedder
+NOTE: Reference stub implementation for demonstration purposes.
+Not intended for production use. Provides SentenceTransformersEmbedder
 class which generates embeddings using the SentenceTransformers library.
 """
 

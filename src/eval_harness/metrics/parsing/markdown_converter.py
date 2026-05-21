@@ -38,7 +38,7 @@ def elements_to_markdown(elements: list[dict[str, Any]]) -> str:
             lines.append("")  # Blank line after paragraph
 
         elif elem_type == "list":
-            ordered = elem.get("content", {}).get("ordered", False)
+            _ = elem.get("content", {}).get("ordered", False)
             # List container itself doesn't add text
             # list_item elements with parent_id will be rendered separately
 
@@ -103,7 +103,7 @@ def _table_to_markdown(table_content: dict[str, Any]) -> str:
     rows = table_content.get("rows", 0)
     cols = table_content.get("cols", 0)
     cells = table_content.get("cells", [])
-    header_rows = table_content.get("header_rows", 1)
+    _ = table_content.get("header_rows", 1)
 
     if rows == 0 or cols == 0:
         return ""

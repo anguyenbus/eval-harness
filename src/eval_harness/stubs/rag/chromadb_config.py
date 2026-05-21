@@ -1,9 +1,9 @@
 """
 ChromaDB RAG configuration constants.
 
-NOTE: This is a reference stub implementation provided for demonstration purposes.
-It is not intended for production use. This module defines all configuration constants
-for the ChromaDB-backed RAG pipeline, including model names, dimensions, and version tracking.
+NOTE: Reference stub implementation for demonstration purposes.
+Not intended for production use. Defines all configuration constants
+for the ChromaDB-backed RAG pipeline, including model names and dimensions.
 """
 
 import os
@@ -17,8 +17,9 @@ CHROMADB_PERSIST_DIR: Final[Path] = Path("data/chromadb/")
 EMBEDDING_MODEL: Final[str] = "sentence-transformers/all-MiniLM-L6-v2"
 EMBEDDING_DIM: Final[int] = 384
 
-# Generator model configuration (supports environment override)
-GENERATOR_MODEL: Final[str] = os.getenv("ANTHROPIC_MODEL", "claude-opus-4-7")
+# Generator model configuration (set via RAG_GENERATOR_MODEL env var)
+# Supports: openai models (gpt-4o, gpt-4o-mini), bedrock models, etc.
+GENERATOR_MODEL: Final[str] = os.getenv("RAG_GENERATOR_MODEL", "gpt-4o")
 
 # Pipeline version tracking
 PIPELINE_VERSION: Final[str] = "0.1.0-chromadb"

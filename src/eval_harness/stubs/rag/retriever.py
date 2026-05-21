@@ -12,8 +12,6 @@ from typing import Any
 
 from beartype import beartype
 
-from eval_harness.stubs.rag.embedder import SentenceTransformersEmbedder
-
 
 @beartype
 class SemanticRetriever:
@@ -29,7 +27,7 @@ class SemanticRetriever:
 
     Attributes:
         _collection: ChromaDB collection to query.
-        _embedder: SentenceTransformersEmbedder for query embeddings.
+        _embedder: Embedder with .embed() method for query embeddings.
 
     Example:
         >>> retriever = SemanticRetriever(collection, embedder)
@@ -41,13 +39,13 @@ class SemanticRetriever:
 
     __slots__ = ("_collection", "_embedder")
 
-    def __init__(self, collection: Any, embedder: SentenceTransformersEmbedder) -> None:
+    def __init__(self, collection: Any, embedder: Any) -> None:
         """
         Initialize semantic retriever.
 
         Args:
             collection: ChromaDB collection instance.
-            embedder: SentenceTransformersEmbedder for query embeddings.
+            embedder: Any embedder with .embed() method.
 
         """
         self._collection = collection
@@ -84,8 +82,8 @@ class SemanticRetriever:
         if not query:
             return []
 
-        # Generate query embedding
-        query_embedding = self._embedder.embed_single(query)
+        # Generate query embedding (HuggingFaceEmbedder uses embed())
+        query_embedding = self._embedder.embed([query])[0]
 
         # Query ChromaDB collection
         results = self._collection.query(

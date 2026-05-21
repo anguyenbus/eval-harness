@@ -31,6 +31,7 @@ class HeadingTree(Tree):
         text: str | None = None,
         *children: "HeadingTree",
     ) -> None:
+        """Initialize heading tree node."""
         self.tag = tag
         self.text = text
         self.children = list(children)
@@ -40,6 +41,7 @@ class HeadingConfig(Config):
     """Configure APTED to compare heading/content nodes."""
 
     def __init__(self, include_text: bool) -> None:
+        """Initialize heading config."""
         self.include_text = include_text
 
     @staticmethod
@@ -50,6 +52,7 @@ class HeadingConfig(Config):
         return Levenshtein.distance(text_a, text_b) / float(length)
 
     def rename(self, node1: HeadingTree, node2: HeadingTree) -> float:
+        """Calculate rename cost between two heading nodes."""
         if node1.tag != node2.tag:
             return 1.0
         if not self.include_text:

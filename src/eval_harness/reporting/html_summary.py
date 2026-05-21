@@ -22,8 +22,8 @@ def generate_summary(results_path: Path, output_path: Path) -> None:
     # Calculate pass rates
     total_count = len(df)
     pass_count = len(df[df["label"] == "pass"])
-    fail_count = len(df[df["label"] == "fail"])
-    error_count = len(df[df["label"] == "error"])
+    _ = len(df[df["label"] == "fail"])  # fail_count (not used)
+    _ = len(df[df["label"] == "error"])  # error_count (not used)
 
     pass_rate = (pass_count / total_count * 100) if total_count > 0 else 0
 
@@ -52,6 +52,12 @@ def generate_summary(results_path: Path, output_path: Path) -> None:
         "pass_count",
     ]
 
+    # Determine stat class based on pass rate
+    if pass_rate > 0:
+        stat_class = "pass" if pass_rate >= 80 else "fail"
+    else:
+        stat_class = ""
+
     # Generate HTML
     html = f"""<!DOCTYPE html>
 <html>
@@ -76,7 +82,7 @@ def generate_summary(results_path: Path, output_path: Path) -> None:
 
     <div class="summary">
         <div class="stat-box">
-            <div class="stat-value {("pass" if pass_rate >= 80 else "fail") if pass_rate > 0 else ""}">{pass_rate:.1f}%</div>
+            <div class="stat-value {stat_class}">{pass_rate:.1f}%</div>
             <div class="stat-label">Pass Rate</div>
         </div>
         <div class="stat-box">

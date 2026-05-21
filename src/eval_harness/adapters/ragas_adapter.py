@@ -93,7 +93,7 @@ class RagasEvaluator:
 
     """
 
-    __slots__ = ("_metrics", "_track_costs")
+    __slots__ = ("_metrics", "_track_costs", "_embedder")
 
     def __init__(
         self,
@@ -101,6 +101,7 @@ class RagasEvaluator:
         judge_model: str = DEFAULT_JUDGE_MODEL,
         temperature: float = 0.0,
         track_costs: bool = False,
+        embedder: Any = None,
     ) -> None:
         """
         Initialize RAGAS evaluator with LLM backend.
@@ -110,6 +111,10 @@ class RagasEvaluator:
             judge_model: Judge model name. Default: gpt-4o.
             temperature: Sampling temperature. Default: 0.0.
             track_costs: Whether to track token usage costs. Default: False.
+            embedder: Optional shared embedder instance. If provided, used for
+                AnswerRelevancy metric instead of creating a new one. This
+                allows sharing the embedder with RAG retrieval to avoid
+                duplicate model loads. Default: None (creates own embedder).
 
         Raises:
             ValueError: If provider is not supported or API key is missing.
@@ -119,8 +124,10 @@ class RagasEvaluator:
             llm_provider=llm_provider,
             judge_model=judge_model,
             temperature=temperature,
+            embedder=embedder,
         )
         self._track_costs = track_costs
+        self._embedder = embedder
 
     @beartype
     def compute_metrics(
@@ -136,7 +143,7 @@ class RagasEvaluator:
         AnswerRelevancy).
 
         Args:
-            rag_output: Dictionary conforming to legal_rag_bench_query_output.schema.json.
+            rag_output: Dictionary conforming to legal_rag_bench schema.
             reference_answer: Reference answer text from the dataset.
 
         Returns:

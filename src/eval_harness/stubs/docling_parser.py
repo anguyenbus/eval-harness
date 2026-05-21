@@ -271,9 +271,7 @@ def parse(pdf_path: Path) -> dict[str, Any]:
 
             # Add bbox if available
             if prov and hasattr(prov, "bbox"):
-                page_height = (
-                    pages[page_idx]["height"] if page_idx < len(pages) else 792
-                )
+                _ = pages[page_idx]["height"] if page_idx < len(pages) else 792
                 element["bbox"] = {
                     "x0": float(prov.bbox.l),
                     "y0": float(prov.bbox.t),
@@ -290,12 +288,16 @@ def parse(pdf_path: Path) -> dict[str, Any]:
             elements.append(element)
 
         # Build output
+        docling_version = result._version if hasattr(result, "_version") else "unknown"
+        parsed_at = (
+            result._time_started
+            if hasattr(result, "_time_started")
+            else "2025-01-01T00:00:00Z"
+        )
         output = {
             "schema_version": "1.0.0",
-            "parser_version": f"docling-{result._version if hasattr(result, '_version') else 'unknown'}",
-            "parsed_at": result._time_started
-            if hasattr(result, "_time_started")
-            else "2025-01-01T00:00:00Z",
+            "parser_version": f"docling-{docling_version}",
+            "parsed_at": parsed_at,
             "source": {
                 "doc_id": doc_id,
                 "filename": pdf_path.name,

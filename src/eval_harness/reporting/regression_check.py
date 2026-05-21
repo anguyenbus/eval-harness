@@ -65,5 +65,9 @@ def check_regression(
     if regressions:
         msg = "Regression detected:\n"
         for reg in regressions:
-            msg += f"  - {reg['metric']}: {reg['baseline']:.3f} -> {reg['current']:.3f} ({reg['change']:.1f}%)\n"
+            metric = reg["metric"]
+            baseline = reg["baseline"]
+            current = reg["current"]
+            change = reg["change"]
+            msg += f"  - {metric}: {baseline:.3f} -> {current:.3f} ({change:.1f}%)\n"
         raise RuntimeError(msg)
