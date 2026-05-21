@@ -346,6 +346,10 @@ datasets:
 - `openai` - LLM judge (set `OPENAI_API_KEY` in `.env`)
 - `datasets` - HuggingFace dataset loader
 
+**Observability (optional):**
+- `arize-phoenix>=4.0.0` - RAG pipeline tracing and visualization
+- `openinference-instrumentation-openai` - OpenAI instrumentation for RAGAS internal traces
+
 ## Using Your Own RAG System
 
 eval-harness is designed to evaluate **your** RAG system, not provide one. The ChromaDB stub in `stubs/rag/` is for demonstration only.
