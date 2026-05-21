@@ -25,8 +25,13 @@ from beartype import beartype
 if TYPE_CHECKING:
     pass
 
-# OpenInference span kind attribute name
-OPENINFERENCE_SPAN_KIND = "openinference.span.kind"
+from openinference.semconv.trace import OpenInferenceSpanKindValues
+
+# OpenInference span kind values
+CHAIN = OpenInferenceSpanKindValues.CHAIN
+RETRIEVER = OpenInferenceSpanKindValues.RETRIEVER
+LLM = OpenInferenceSpanKindValues.LLM
+EVALUATOR = OpenInferenceSpanKindValues.EVALUATOR
 
 # Constants
 DEFAULT_ENDPOINT: Final[str] = "http://localhost:6006"
@@ -218,7 +223,9 @@ class PhoenixAdapter:
             timestamp = time.strftime("%Y%m%d_%H%M%S")
             self._current_session_id = f"eval-{run_name}-{timestamp}"
 
-            with self._tracer.start_as_current_span(name="eval_run") as span:
+            with self._tracer.start_as_current_span(
+                name="eval_run", openinference_span_kind=CHAIN
+            ) as span:
                 span.set_attribute("eval.run_name", run_name)
                 span.set_attribute("eval.num_questions", num_questions)
                 span.set_attribute("eval.session_id", self._current_session_id)
@@ -261,8 +268,9 @@ class PhoenixAdapter:
             # Add session_id from parent eval_run if available
             if self._current_session_id:
                 with using_attributes(session_id=self._current_session_id):
-                    with self._tracer.start_as_current_span(name="rag_query") as span:
-                        span.set_attribute(OPENINFERENCE_SPAN_KIND, "CHAIN")
+                    with self._tracer.start_as_current_span(
+                        name="rag_query", openinference_span_kind=CHAIN
+                    ) as span:
                         span.set_attribute("question", question)
                         span.set_attribute("input", question)
                         self._active_root_span = span
@@ -271,8 +279,9 @@ class PhoenixAdapter:
                         finally:
                             self._active_root_span = None
             else:
-                with self._tracer.start_as_current_span(name="rag_query") as span:
-                    span.set_attribute(OPENINFERENCE_SPAN_KIND, "CHAIN")
+                with self._tracer.start_as_current_span(
+                    name="rag_query", openinference_span_kind=CHAIN
+                ) as span:
                     span.set_attribute("question", question)
                     span.set_attribute("input", question)
                     self._active_root_span = span
@@ -303,8 +312,9 @@ class PhoenixAdapter:
         trace_id = str(uuid.uuid4())
 
         if self._tracer:
-            span = self._tracer.start_span(name="rag_query")
-            span.set_attribute(OPENINFERENCE_SPAN_KIND, "CHAIN")
+            span = self._tracer.start_span(
+                name="rag_query", openinference_span_kind=CHAIN
+            )
             span.set_attribute("question", question)
             span.set_attribute("input", question)
             self._active_root_span = span
@@ -336,8 +346,9 @@ class PhoenixAdapter:
         if not self._tracer:
             return
 
-        with self._tracer.start_as_current_span(name="retrieval") as span:
-            span.set_attribute(OPENINFERENCE_SPAN_KIND, "RETRIEVER")
+        with self._tracer.start_as_current_span(
+            name="retrieval", openinference_span_kind=RETRIEVER
+        ) as span:
             span.set_attribute("input.value", query_text)
             span.set_attribute("retrieval.k", k)
             span.set_attribute("retrieval.timing_ms", timing_ms)
@@ -377,8 +388,9 @@ class PhoenixAdapter:
         if not self._tracer:
             return
 
-        with self._tracer.start_as_current_span(name="generation") as span:
-            span.set_attribute(OPENINFERENCE_SPAN_KIND, "LLM")
+        with self._tracer.start_as_current_span(
+            name="generation", openinference_span_kind=LLM
+        ) as span:
             span.set_attribute("llm.model_name", model)
             span.set_attribute("llm.token_count.total", tokens)
             span.set_attribute("llm.timing_ms", timing_ms)
@@ -415,9 +427,9 @@ class PhoenixAdapter:
         if not self._tracer:
             return
 
-        with self._tracer.start_as_current_span(name="evaluator") as span:
-            span.set_attribute(OPENINFERENCE_SPAN_KIND, "EVALUATOR")
-
+        with self._tracer.start_as_current_span(
+            name="evaluator", openinference_span_kind=EVALUATOR
+        ) as span:
             # Add verdict if provided
             if verdict:
                 span.set_attribute("evaluation.verdict", verdict)
