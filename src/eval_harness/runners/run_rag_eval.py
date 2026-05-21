@@ -44,7 +44,7 @@ def _process_query(
     trace_id: str | None,
     framework_version: str | None = None,
     judge_model: str | None = None,
-) -> tuple[bool, int]:  # (success, trace_count_increment)
+) -> tuple[bool, int, dict[str, Any]]:  # (success, trace_count_increment, reasoning)
     """
     Process a single query and write result to CSV.
 
@@ -86,8 +86,18 @@ def _process_query(
             chunk.get("doc_id") == relevant_passage_id for chunk in retrieved_chunks
         )
 
-        # Compute metrics (DeepEval by default)
-        metric_scores = evaluator.compute_metrics_with_timing(output, gold_answer_text)
+        # Compute metrics with full reasoning (DeepEval)
+        import time as time_module
+
+        metric_start = time_module.time()
+        metric_result = evaluator.compute_metrics_with_reasoning(
+            output, gold_answer_text
+        )
+        metric_end = time_module.time()
+
+        metric_scores = metric_result["scores"]
+        metric_reasoning = metric_result["reasoning"]
+        metric_scores["metric_computation_time_ms"] = (metric_end - metric_start) * 1000
 
         # Determine verdict
         faithfulness = metric_scores.get("faithfulness", 0.0)
@@ -96,7 +106,7 @@ def _process_query(
         # Record evaluation span in Phoenix (if enabled)
         if phoenix_adapter and trace_id:
             phoenix_adapter.start_evaluation_span(
-                trace_id, metric_scores, verdict=verdict
+                trace_id, metric_scores, verdict=verdict, reasoning=metric_reasoning
             )
 
         # Prepare result row
@@ -128,7 +138,7 @@ def _process_query(
         # Write result
         writer.writerow(result)
         csv_file.flush()
-        return True, 1 if phoenix_adapter else 0
+        return True, 1 if phoenix_adapter else 0, metric_reasoning
 
     except Exception as e:
         error_result = {
@@ -155,7 +165,7 @@ def _process_query(
 
         writer.writerow(error_result)
         csv_file.flush()
-        return False, 0
+        return False, 0, {}
 
 
 def load_dataset(slice_name: str, config: dict) -> Any:
@@ -456,6 +466,7 @@ def main() -> None:
     processed = 0
     errors = 0
     trace_count = 0
+    all_reasoning: list[dict[str, Any]] = []
 
     # Convert dataset to list to get count
     dataset_list = list(dataset)
@@ -484,7 +495,7 @@ def main() -> None:
             ) in dataset_list:
                 print(f"Processing query {query_id}...")
                 with phoenix_adapter.rag_query_span(query_text) as trace_id:
-                    success, trace_inc = _process_query(
+                    success, trace_inc, reasoning = _process_query(
                         query_id,
                         query_text,
                         relevant_passage_id,
@@ -504,10 +515,19 @@ def main() -> None:
                     else:
                         errors += 1
                     trace_count += trace_inc
+                    # Collect reasoning for details.json
+                    if reasoning:
+                        all_reasoning.append(
+                            {
+                                "query_id": query_id,
+                                "question": query_text,
+                                "reasoning": reasoning,
+                            }
+                        )
     else:
         for query_id, query_text, relevant_passage_id, gold_answer_text in dataset_list:
             print(f"Processing query {query_id}...")
-            success, trace_inc = _process_query(
+            success, trace_inc, reasoning = _process_query(
                 query_id,
                 query_text,
                 relevant_passage_id,
@@ -527,6 +547,15 @@ def main() -> None:
             else:
                 errors += 1
             trace_count += trace_inc
+            # Collect reasoning for details.json
+            if reasoning:
+                all_reasoning.append(
+                    {
+                        "query_id": query_id,
+                        "question": query_text,
+                        "reasoning": reasoning,
+                    }
+                )
 
     csv_file.close()
 
@@ -586,6 +615,24 @@ def main() -> None:
 
     with open(json_file, "w") as f:
         json.dump(summary, f, indent=2)
+
+    # Write details.json with full reasoning
+    if all_reasoning:
+        details_file = output_file.stem + "_details.json"
+        details_path = args.output_dir / details_file
+        details = {
+            "dataset": "legal_rag_bench",
+            "slice": args.slice,
+            "timestamp": timestamp,
+            "total_queries": len(all_reasoning),
+            "evaluation_framework": "deepeval",
+            "framework_version": framework_version,
+            "judge_model": judge_model,
+            "queries": all_reasoning,
+        }
+        with open(details_path, "w") as f:
+            json.dump(details, f, indent=2)
+        print(f"Details with reasoning written to: {details_path}")
 
     print(f"\nResults written to: {output_file}")
     print(f"Total queries processed: {processed}")

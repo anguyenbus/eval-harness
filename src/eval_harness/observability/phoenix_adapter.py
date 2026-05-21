@@ -404,16 +404,21 @@ class PhoenixAdapter:
         trace_id: str,
         ragas_metrics: dict[str, float],
         verdict: str | None = None,
+        reasoning: dict[str, Any] | None = None,
     ) -> None:
         """
-        Create evaluation span (EVALUATOR kind - LLM judge via RAGAS).
+        Create evaluation span (EVALUATOR kind - LLM judge via RAGAS/DeepEval).
 
         If called within rag_query_span context, becomes a child span automatically.
 
         Args:
             trace_id: Parent trace ID (for tracking).
-            ragas_metrics: Dictionary of RAGAS metric scores.
+            ragas_metrics: Dictionary of metric scores.
             verdict: Optional verdict string (PASS/NEEDS_REVIEW/ERROR).
+            reasoning: Optional full reasoning from DeepEval with keys:
+                - metric_name.reason: L1 overall explanation
+                - metric_name.verdicts: L2 per-chunk judgments
+                - metric_name.claims/truths: L3 detailed breakdown
 
         """
         # Store for export
@@ -443,6 +448,34 @@ class PhoenixAdapter:
             # Individual metric scores
             for metric_name, score in ragas_metrics.items():
                 span.set_attribute(f"evaluation.{metric_name}", score)
+
+            # Add reasoning data if provided (DeepEval full reasoning)
+            if reasoning:
+                for metric_name, metric_reasoning in reasoning.items():
+                    # Add L1: overall reason
+                    if reason := metric_reasoning.get("reason"):
+                        span.set_attribute(f"evaluation.{metric_name}.reason", reason)
+
+                    # Add L2: verdicts (per-chunk judgments)
+                    if verdicts := metric_reasoning.get("verdicts"):
+                        # Store as JSON for Phoenix UI display
+                        span.set_attribute(
+                            f"evaluation.{metric_name}.verdicts",
+                            json.dumps(verdicts),
+                        )
+                        # Also store count for quick filtering
+                        span.set_attribute(
+                            f"evaluation.{metric_name}.verdicts_count",
+                            len(verdicts),
+                        )
+
+                    # Add L3: claims/truths (for Faithfulness)
+                    for attr in ("claims", "truths", "statements"):
+                        if items := metric_reasoning.get(attr):
+                            span.set_attribute(
+                                f"evaluation.{metric_name}.{attr}",
+                                json.dumps(items),
+                            )
 
     @beartype
     def export_traces(self) -> dict[str, Any]:

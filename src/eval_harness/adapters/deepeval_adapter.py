@@ -335,6 +335,63 @@ class DeepEvalEvaluator:
         return await asyncio.gather(*tasks)
 
     @beartype
+    def _extract_verdicts(self, metric: Any) -> List[Dict[str, Any]]:
+        """
+        Extract verdicts from a DeepEval metric.
+
+        Verdicts contain per-chunk or per-claim judgments with rationale.
+
+        Args:
+            metric: DeepEval metric instance after measure() has been called.
+
+        Returns:
+            List of verdict dictionaries with verdict, reason, and optionally
+            chunk_id.
+
+        """
+        verdicts = getattr(metric, "verdicts", None)
+        if not verdicts:
+            return []
+
+        extracted = []
+        for v in verdicts:
+            try:
+                verdict_dict = v.model_dump() if hasattr(v, "model_dump") else dict(v)
+                extracted.append(verdict_dict)
+            except Exception:
+                # Fallback to string representation if model_dump fails
+                extracted.append({"verdict": str(v)})
+
+        return extracted
+
+    @beartype
+    def _extract_claims_truths(self, metric: Any) -> Dict[str, List[Dict[str, Any]]]:
+        """
+        Extract claims and truths from a DeepEval metric (Faithfulness).
+
+        Args:
+            metric: DeepEval metric instance after measure() has been called.
+
+        Returns:
+            Dictionary with keys: claims, truths, statements.
+
+        """
+        result = {}
+
+        for attr in ["claims", "truths", "statements"]:
+            items = getattr(metric, attr, None)
+            if items:
+                try:
+                    result[attr] = [
+                        i.model_dump() if hasattr(i, "model_dump") else dict(i)
+                        for i in items
+                    ]
+                except Exception:
+                    result[attr] = [{"text": str(i)} for i in items]
+
+        return result
+
+    @beartype
     def compute_metrics_with_timing(
         self,
         rag_output: Dict[str, Any],
@@ -365,3 +422,121 @@ class DeepEvalEvaluator:
 
         results["metric_computation_time_ms"] = (end_time - start_time) * 1000
         return results
+
+    @beartype
+    def compute_metrics_with_reasoning(
+        self,
+        rag_output: Dict[str, Any],
+        reference_answer: str,
+    ) -> Dict[str, Any]:
+        """
+        Compute DeepEval metrics with full reasoning extraction.
+
+        Extracts three layers of reasoning:
+        - L1: metric.reason (overall explanation)
+        - L2: metric.verdicts (per-chunk yes/no with rationale)
+        - L3: metric.claims/truths (detailed claim analysis for Faithfulness)
+
+        Args:
+            rag_output: Dictionary conforming to legal_rag_bench schema.
+            reference_answer: Reference answer text from the dataset.
+
+        Returns:
+            Dictionary with:
+                - scores: dict of metric name -> float score
+                - reasoning: dict of metric name -> dict with:
+                    - reason: str (L1 overall explanation)
+                    - verdicts: list[dict] (L2 per-chunk judgments)
+                    - claims/truths: list[dict] (L3 breakdown for faithfulness)
+
+        """
+        # Transform to DeepEval format
+        test_case = transform_to_deepeval_sample(rag_output, reference_answer)
+
+        scores: Dict[str, Any] = {}
+        reasoning: Dict[str, Any] = {}
+
+        # Compute Faithfulness with reasoning
+        if "faithfulness" in self._metrics:
+            try:
+                metric = self._metrics["faithfulness"]
+                metric.measure(test_case)
+                scores["faithfulness"] = float(metric.score)
+
+                # Extract reasoning
+                metric_reasoning = {
+                    "reason": getattr(metric, "reason", ""),
+                }
+                # Add claims/truths for Faithfulness (L3 reasoning)
+                claims_truths = self._extract_claims_truths(metric)
+                metric_reasoning.update(claims_truths)
+                reasoning["faithfulness"] = metric_reasoning
+
+            except Exception as e:
+                import sys
+
+                print(f"[ERROR] faithfulness failed: {e}", file=sys.stderr)
+                scores["faithfulness"] = 0.0
+                reasoning["faithfulness"] = {"reason": f"ERROR: {e}", "verdicts": []}
+
+        # Compute ContextualPrecision with reasoning
+        if "context_precision" in self._metrics:
+            try:
+                metric = self._metrics["context_precision"]
+                metric.measure(test_case)
+                scores["context_precision"] = float(metric.score)
+
+                # Extract reasoning - verdicts show which chunks were relevant
+                reasoning["context_precision"] = {
+                    "reason": getattr(metric, "reason", ""),
+                    "verdicts": self._extract_verdicts(metric),
+                }
+
+            except Exception as e:
+                import sys
+
+                print(f"[ERROR] context_precision failed: {e}", file=sys.stderr)
+                scores["context_precision"] = 0.0
+                reasoning["context_precision"] = {
+                    "reason": f"ERROR: {e}",
+                    "verdicts": [],
+                }
+
+        # Compute ContextualRecall with reasoning
+        if "context_recall" in self._metrics:
+            try:
+                metric = self._metrics["context_recall"]
+                metric.measure(test_case)
+                scores["context_recall"] = float(metric.score)
+
+                reasoning["context_recall"] = {
+                    "reason": getattr(metric, "reason", ""),
+                    "verdicts": self._extract_verdicts(metric),
+                }
+
+            except Exception as e:
+                import sys
+
+                print(f"[ERROR] context_recall failed: {e}", file=sys.stderr)
+                scores["context_recall"] = 0.0
+                reasoning["context_recall"] = {"reason": f"ERROR: {e}", "verdicts": []}
+
+        # Compute AnswerRelevancy with reasoning
+        if "answer_relevancy" in self._metrics:
+            try:
+                metric = self._metrics["answer_relevancy"]
+                metric.measure(test_case)
+                scores["answer_relevancy"] = float(metric.score)
+
+                reasoning["answer_relevancy"] = {
+                    "reason": getattr(metric, "reason", ""),
+                }
+
+            except Exception as e:
+                import sys
+
+                print(f"[ERROR] answer_relevancy failed: {e}", file=sys.stderr)
+                scores["answer_relevancy"] = 0.0
+                reasoning["answer_relevancy"] = {"reason": f"ERROR: {e}"}
+
+        return {"scores": scores, "reasoning": reasoning}

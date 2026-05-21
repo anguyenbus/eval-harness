@@ -219,3 +219,125 @@ class TestDeepEvalEvaluator:
         # Attempt to set a non-slotted attribute should raise AttributeError
         with pytest.raises(AttributeError):
             evaluator.dynamic_attribute = "value"
+
+    def test_compute_metrics_with_reasoning_returns_structure(self, monkeypatch):
+        """Test that compute_metrics_with_reasoning returns scores and reasoning."""
+        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+
+        evaluator = DeepEvalEvaluator(llm_provider="openai", judge_model="gpt-4o")
+
+        rag_output = {
+            "query": {"text": "Question?"},
+            "answer": {"text": "Answer", "citations": []},
+            "retrieved_chunks": [{"text": "Context"}],
+        }
+        reference_answer = "Reference"
+
+        # Create mock verdict objects
+        mock_verdict = MagicMock()
+        mock_verdict.model_dump.return_value = {
+            "verdict": "yes",
+            "reason": "Chunk contains relevant information",
+        }
+
+        # Mock the metric.measure() method
+        with patch.object(evaluator._metrics["faithfulness"], "measure"):
+            with patch.object(evaluator._metrics["context_precision"], "measure"):
+                with patch.object(evaluator._metrics["context_recall"], "measure"):
+                    with patch.object(
+                        evaluator._metrics["answer_relevancy"], "measure"
+                    ):
+                        # Set mock scores and reasoning
+                        evaluator._metrics["faithfulness"].score = 0.95
+                        evaluator._metrics[
+                            "faithfulness"
+                        ].reason = "All claims are supported by context"
+                        evaluator._metrics["faithfulness"].claims = []
+                        evaluator._metrics["faithfulness"].truths = []
+
+                        evaluator._metrics["context_precision"].score = 0.85
+                        evaluator._metrics[
+                            "context_precision"
+                        ].reason = "Most chunks are relevant"
+                        evaluator._metrics["context_precision"].verdicts = [
+                            mock_verdict
+                        ]
+
+                        evaluator._metrics["context_recall"].score = 0.90
+                        evaluator._metrics[
+                            "context_recall"
+                        ].reason = "Good coverage of relevant information"
+                        evaluator._metrics["context_recall"].verdicts = []
+
+                        evaluator._metrics["answer_relevancy"].score = 0.88
+                        evaluator._metrics[
+                            "answer_relevancy"
+                        ].reason = "Answer addresses the question well"
+
+                        result = evaluator.compute_metrics_with_reasoning(
+                            rag_output, reference_answer
+                        )
+
+                        assert "scores" in result
+                        assert "reasoning" in result
+                        assert result["scores"]["faithfulness"] == 0.95
+                        assert result["scores"]["context_precision"] == 0.85
+                        assert result["reasoning"]["faithfulness"]["reason"] == (
+                            "All claims are supported by context"
+                        )
+                        assert (
+                            result["reasoning"]["context_precision"]["reason"]
+                            == "Most chunks are relevant"
+                        )
+                        assert (
+                            len(result["reasoning"]["context_precision"]["verdicts"])
+                            == 1
+                        )
+
+    def test_extract_verdicts_handles_empty_verdicts(self, monkeypatch):
+        """Test that _extract_verdicts returns empty list when no verdicts."""
+        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+
+        evaluator = DeepEvalEvaluator(llm_provider="openai", judge_model="gpt-4o")
+
+        # Mock metric with no verdicts attribute
+        mock_metric = MagicMock(spec=[])
+        mock_metric.verdicts = None
+
+        verdicts = evaluator._extract_verdicts(mock_metric)
+
+        assert verdicts == []
+
+    def test_extract_verdicts_handles_model_dump_failure(self, monkeypatch):
+        """Test that _extract_verdicts handles model_dump failure gracefully."""
+        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+
+        evaluator = DeepEvalEvaluator(llm_provider="openai", judge_model="gpt-4o")
+
+        # Create mock verdict that fails model_dump
+        mock_verdict = MagicMock()
+        mock_verdict.model_dump.side_effect = Exception("Dump failed")
+
+        mock_metric = MagicMock()
+        mock_metric.verdicts = [mock_verdict]
+
+        verdicts = evaluator._extract_verdicts(mock_metric)
+
+        # Should fallback to string representation
+        assert len(verdicts) == 1
+        assert "verdict" in verdicts[0]
+
+    def test_extract_claims_truths_returns_empty_when_none(self, monkeypatch):
+        """Test that _extract_claims_truths returns empty dict when no data."""
+        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+
+        evaluator = DeepEvalEvaluator(llm_provider="openai", judge_model="gpt-4o")
+
+        mock_metric = MagicMock(spec=[])
+        mock_metric.claims = None
+        mock_metric.truths = None
+        mock_metric.statements = None
+
+        result = evaluator._extract_claims_truths(mock_metric)
+
+        assert result == {}

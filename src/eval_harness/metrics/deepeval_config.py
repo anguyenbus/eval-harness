@@ -26,7 +26,7 @@ load_dotenv()
 # Constants
 OPENAI_API_KEY_ENV: Final[str] = "OPENAI_API_KEY"
 DEEPEVAL_MAX_CONCURRENT_ENV: Final[str] = "DEEPEVAL_MAX_CONCURRENT"
-DEFAULT_OPENAI_MODEL: Final[str] = "gpt-4o"
+DEFAULT_OPENAI_MODEL: Final[str] = "gpt-4o-mini"
 DEFAULT_TEMPERATURE: Final[float] = 0.0
 DEFAULT_MAX_CONCURRENT: Final[int] = 10
 DEFAULT_BEDROCK_MODEL: Final[str] = "anthropic.claude-3-5-sonnet-20241022-v2:0"
@@ -133,11 +133,12 @@ def create_deepeval_metrics(
 
     # Create metrics with LLM backend
     # In DeepEval v4, we pass the model as a string or LLM instance
+    # include_reason=True ensures reason attribute is populated after measure()
     return {
-        "faithfulness": FaithfulnessMetric(model=llm),
-        "context_precision": ContextualPrecisionMetric(model=llm),
-        "context_recall": ContextualRecallMetric(model=llm),
-        "answer_relevancy": AnswerRelevancyMetric(model=llm),
+        "faithfulness": FaithfulnessMetric(model=llm, include_reason=True),
+        "context_precision": ContextualPrecisionMetric(model=llm, include_reason=True),
+        "context_recall": ContextualRecallMetric(model=llm, include_reason=True),
+        "answer_relevancy": AnswerRelevancyMetric(model=llm, include_reason=True),
     }
 
 
