@@ -5,10 +5,10 @@
 Eval-Harness is a cloud-based evaluation framework for document parsing and RAG systems. It runs on AWS and provides:
 
 - **Standardized metrics** for comparing system quality
-- **Public benchmark integrations** (OmniDocBench, DP-Bench, LegalBench-RAG)
+- **Public benchmark integrations** (OmniDocBench, DP-Bench, Legal RAG Bench)
 - **Extensible adapter pattern** for plugging in custom systems
 - **Built-in observability** via Arize Phoenix telemetry
-- **LLM-powered evaluation** using Amazon Bedrock (Anthropic Claude)
+- **LLM-powered evaluation** using DeepEval with OpenAI or AWS Bedrock
 
 ## 2. Cloud Architecture
 
@@ -50,7 +50,7 @@ graph TB
     subgraph Dataset["Dataset Layer"]
         OmniLoader["OmniDocBench"]
         DPLoader["DP-Bench"]
-        LegalLoader["LegalBench-RAG"]
+        LegalLoader["Legal RAG Bench"]
     end
 
     subgraph Storage["AWS Storage"]
@@ -111,14 +111,16 @@ Every evaluation run emits OpenTelemetry traces to Arize Phoenix:
 
 Phoenix UI runs as a sidecar service, accessible via port 6006 (local) or cloud-hosted URL.
 
-### 3.3 LLM-as-Judge with Bedrock
+### 3.3 LLM-as-Judge with DeepEval
 
-For RAG evaluation, Anthropic Claude (via Amazon Bedrock) judges:
+For RAG evaluation, DeepEval metrics (via OpenAI or AWS Bedrock) judge:
 
-- **Answer supported**: Does the answer cite retrieved evidence?
-- **Citation quality**: Are citations valid and relevant?
+- **Faithfulness**: Is generated answer factually consistent with retrieved context?
+- **Context Precision**: Are relevant chunks ranked higher than irrelevant ones?
+- **Context Recall**: Did retrieval find all information needed for gold answer?
+- **Answer Relevancy**: Does response directly address the question?
 
-Benefits over heuristic checks: more nuanced judgment, better handling of ambiguous cases.
+Benefits over heuristic checks: more nuanced judgment, better handling of ambiguous legal reasoning.
 
 ### 3.4 Adapter Layer
 
@@ -133,8 +135,9 @@ No code changes required on your side.
 | Text Similarity | NID, BLEU, METEOR | Extracted text quality |
 | Structure | TEDS, MHS, Layout mAP | Layout accuracy |
 | Reading Order | ARD | Element sequencing |
-| Retrieval | Recall@k, Precision@k | RAG chunk quality |
-| Answer | F1, Exact Match | Generated answer accuracy |
+| RAG Retrieval | Context Precision, Context Recall | Legal RAG retrieval quality |
+| RAG Answer | Faithfulness, Answer Relevancy | Legal RAG generation quality |
+| RAG Binary | Relevant Passage Retrieved | Evidence retrieval success |
 
 ## 4. Key Design Decisions
 
@@ -156,16 +159,16 @@ Phoenix provides:
 - **Local development** — run Phoenix locally, same stack as production
 - **OpenTelemetry native** — standard protocol, no vendor lock-in
 
-### 4.3 Why Bedrock Anthropic?
+### 4.3 Why DeepEval + Multiple LLM Backends?
 
-Alternatives considered: OpenAI API, local Llama models, heuristic-only evaluation.
+Alternatives considered: RAGAS only, Bedrock-only, heuristic-only evaluation.
 
-Chosen Bedrock because:
+Chose DeepEval with multiple backends because:
 
-- **No API keys to manage** — IAM-based auth
-- **Regional proximity** — data stays in chosen AWS region
-- **Claude quality** — strong at citation judgment tasks
-- **Unified billing** — on AWS invoice, separate vendor
+- **Framework flexibility** — switch between OpenAI and Bedrock via config
+- **Standard metrics** — Faithfulness, Context Precision, Recall, Answer Relevancy
+- **Cost control** — use GPT-4o-mini for development, Claude for production
+- **Regional options** — Bedrock keeps data in chosen AWS region, OpenAI for speed
 
 ### 4.4 Why Adapter Pattern?
 
@@ -194,11 +197,12 @@ Evaluation on large datasets takes time. Writing results incrementally:
 |-------|------------|-----------|
 | Compute | EKS / Lambda | Scale or save |
 | Storage | S3 | Durable, cheap, integrates with everything |
-| LLM | Bedrock Claude | IAM auth, regional, high quality |
+| LLM | OpenAI GPT-4o / Bedrock Claude | Flexible judge backends |
+| Metrics | DeepEval / RAGAS | Standard RAG evaluation metrics |
 | Telemetry | Arize Phoenix + OpenTelemetry | LLM-aware, standard protocol |
 | Orchestration | AWS Step Functions (optional) | Long-running workflow coordination |
 | Container | ECR + Docker | Reproducible builds |
-| Language | Python 3.13+ | Rich ecosystem |
+| Language | Python 3.11+ | Rich ecosystem |
 | Package | uv | Fast dependency resolution |
 | Schema | JSON Schema | Explicit, toolable |
 | Validation | jsonschema | Reference implementation |
