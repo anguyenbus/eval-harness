@@ -19,7 +19,9 @@
 | Maintainer org | explodinggradients → "vibrantlabsai" (recently rebranded) | confident-ai | DeepEval (more stable identity) |
 | Primary focus | RAG pipelines | General LLM apps + agents + red teaming | DeepEval (broader) |
 
-**Both projects are mature and actively maintained.** DeepEval has the larger community and faster release cadence; Ragas is the older, more academically cited project (EACL 2024) and remains the de facto default for RAG-specific evaluation. **Neither is risk-free.** DeepEval carries a serious, currently-open security vulnerability around OpenTelemetry hijacking; Ragas carries a history of breaking changes, async-loop patching that silently breaks downstream apps, and instability in its testset generation module.
+**Both projects are mature and actively maintained.** DeepEval has the larger community and faster release cadence; Ragas is the older, more academically cited project (EACL 2024) and remains the de facto default for RAG-specific evaluation. **Neither is risk-free.** DeepEval shipped a serious OpenTelemetry hijack in v3.7.7 that has since been removed from `main`, but the framework still defaults to PostHog + Sentry telemetry that must be explicitly disabled. Ragas carries a history of breaking changes, async-loop patching that silently breaks downstream apps, and instability in its testset generation module.
+
+> **Verification note (May 22, 2026):** The OpenTelemetry TracerProvider hijack originally described in DeepEval issue `#2497` (v3.7.7) is **no longer present in the current `main` branch.** This report has been updated to reflect the verified current state of `deepeval/telemetry.py`. See §3.2.1 for the full breakdown and mitigation steps.
 
 ---
 
@@ -82,24 +84,77 @@
 
 ### 3.2 DeepEval — the bug pile
 
-#### 3.2.1 ⚠️ Critical: OpenTelemetry TracerProvider hijack (Issue #2497)
-**This is the single most serious finding in this report.**
+#### 3.2.1 OpenTelemetry hijack (Issue #2497) — verified as fixed on `main`, with caveats
 
-- **Status:** Open, assigned, filed Feb 18, 2026, affecting DeepEval v3.7.7.
-- **What it does, at module import time (not at evaluation time):**
-  1. Calls `trace.set_tracer_provider(TracerProvider())` globally. This means **all OpenTelemetry spans created anywhere in the host application** (business logic spans, request traces, database query spans) are routed to DeepEval's own New Relic account at `https://otlp.nr-data.net:4317` using a hardcoded API key.
-  2. Initializes Sentry with `profiles_sample_rate=1.0` and `traces_sample_rate=1.0` — i.e., 100% CPU profiling of the host application's processes.
-  3. Overrides `sys.excepthook` so uncaught exceptions in the host application go to DeepEval's Sentry DSN.
-  4. Makes a blocking HTTP call to `https://api.ipify.org` to collect the server's public IP.
-  5. Initializes PostHog analytics.
-- **Why this is catastrophic:**
-  - **Data exfiltration of application telemetry to a third party without user consent or disclosure.** If your application traces include user IDs, query parameters, internal service names, or PII, all of that flows to DeepEval's New Relic.
-  - **Silent failure:** the host application's own `trace.set_tracer_provider()` call after importing DeepEval gets a warning ("Overriding of current TracerProvider is not allowed") and is silently ignored. You think your tracing is configured; it isn't.
-  - **Performance:** 100% Sentry CPU profiling causes measurable overhead in production.
-  - **Memory:** BatchSpanProcessor + Sentry profiling buffers leak under load.
-  - The hardcoded New Relic license key is committed in the source: `1711c684db8a30361a7edb0d0398772cFFFFNRAL`.
-- **Related issues:** `#757` (unable to disable telemetry), `#1853` (Aikido security tool flags deepeval as malware), `#2092` (external PostHog calls), `#1340` (New Relic key exposed in source).
-- **Verdict:** This single issue should disqualify DeepEval from any environment with compliance requirements (SOC 2, HIPAA, PCI, GDPR) until fixed. It is fixable — the maintainer needs to use a private/local TracerProvider instance and never touch `sys.excepthook` — but as of this report it is still open.
+**Original claim (v3.7.7, Feb 2026):** Issue `#2497` reported that DeepEval v3.7.7's `telemetry.py` at module import time:
+1. Hijacked the global OpenTelemetry `TracerProvider`, routing all host application spans to DeepEval's New Relic account
+2. Initialized Sentry with 100% CPU profiling and trace sampling
+3. Clobbered `sys.excepthook` so uncaught exceptions went to DeepEval's Sentry
+4. Made a blocking HTTP call to `api.ipify.org`
+5. Initialized PostHog analytics
+
+**Verified current state of `deepeval/telemetry.py` on `main` (read May 22, 2026, 518 lines):**
+
+| Behavior | v3.7.7 | Current `main` |
+|---|---|---|
+| Global `trace.set_tracer_provider(TracerProvider())` | ✅ Yes | ❌ **Removed entirely** |
+| OTLP exporter to `otlp.nr-data.net` | ✅ Yes | ❌ **Removed entirely** |
+| Hardcoded New Relic API key | ✅ Yes | ❌ **Removed entirely** |
+| Sentry `profiles_sample_rate` | `1.0` (100%) | `0.0` |
+| Sentry `traces_sample_rate` | `1.0` (100%) | `0.0` |
+| `sys.excepthook` behavior | Clobbered | **Chained** — previous excepthook is preserved and called after Sentry capture |
+| `api.ipify.org` fetch | Blocking on import | **Async** — runs on daemon thread |
+| Sentry initialization | At import, unconditional | At import, gated by `telemetry_opt_out()` |
+| PostHog initialization | At import | At import, gated by `telemetry_opt_out()` |
+| Excepthook installation | At import, unconditional | Triple-gated: `ERROR_REPORTING` + `not blocked_by_firewall()` + `not telemetry_opt_out()` |
+
+The TracerProvider hijack is **gone from the codebase**. So is the New Relic exfiltration path. The Sentry SDK is still initialized when telemetry is on, but with both sample rates at 0.0 it does not actively profile or trace the host application — it only captures exceptions via the (now-chained) excepthook.
+
+**What still happens when telemetry is on (the default):**
+
+- **PostHog client is constructed** at import time with hardcoded project key `phc_IXvGRcscJJoIb049PtjIZ65JnXQguOUZ5B5MncunFdB` → `us.i.posthog.com`.
+- **Sentry SDK is initialized** (DSN hardcoded) but with sampling at 0%. Uncaught exceptions still get reported via `sentry_sdk.capture_exception()` from the chained excepthook.
+- **Public IP fetched** from `api.ipify.org` on a background daemon thread.
+- **Every PostHog event includes**: deepeval version, login status, Jupyter/non-Jupyter flag, anonymous UUID, public IP, installed integrations, per-feature usage. Events fire on evaluations, synthesizer runs, guardrail runs, benchmarks, dataset pulls, traces sent, logins.
+
+**How to disable all third-party telemetry — verified:**
+
+```bash
+export DEEPEVAL_TELEMETRY_OPT_OUT=YES
+```
+
+I traced the opt-out path through every telemetry-emitting code path in `telemetry.py`. The pattern is consistent:
+
+```python
+def telemetry_opt_out():
+    return get_settings().DEEPEVAL_TELEMETRY_OPT_OUT
+
+# Module-level guards
+if not telemetry_opt_out():
+    sentry_sdk.init(...)        # only initialized if opt-in
+    posthog = Posthog(...)      # only constructed if opt-in
+
+# Every context manager
+@contextmanager
+def capture_evaluation_run(type):
+    if telemetry_opt_out():
+        yield                   # no telemetry, just yield through
+    else:
+        # ... posthog.capture(...)
+        yield
+```
+
+The excepthook installation is additionally gated on `ERROR_REPORTING` and `blocked_by_firewall()`. With opt-out enabled, neither Sentry nor PostHog is initialized at all — there's no object to capture from. The previous opt-out regression (issue `#1613`, where setting the env var caused `NameError: name 'posthog' is not defined`) was fixed by PR `#1976` (merged Aug 2025) and PR `#1596` (merged May 2025).
+
+**Recommended hardening (defense in depth):**
+
+1. **Set `DEEPEVAL_TELEMETRY_OPT_OUT=YES` in your container base image, CI, and dev environments.** Don't rely on per-developer config.
+2. **Pin the DeepEval version.** The v3.7.7 episode shows the maintainer is willing to ship aggressive telemetry changes. Pin to a known-good version and review the `telemetry.py` diff on every upgrade.
+3. **Egress-filter the destinations** at the network layer: `api.ipify.org`, `*.ingest.sentry.io`, `us.i.posthog.com`, `otlp.nr-data.net`, `*.nr-data.net`. Even with opt-out set, network-layer blocking is a useful redundant control.
+4. **Audit `deepeval/telemetry.py` on every version bump.** The file is ~500 lines and a 5-minute read.
+5. **Isolate from sensitive workloads.** Run DeepEval in a separate process or container from any service handling PII or regulated data.
+
+**Severity verdict:** The original v3.7.7 issue was genuinely critical. The current `main` is in a defensible state if telemetry is opted out and version-pinned. The remaining default-on PostHog/Sentry behavior is in line with industry norms for open-source libraries backed by commercial platforms (LangChain, LlamaIndex, etc. do similar). It is **not** in line with what a security-conscious enterprise wants out of the box, which is why opt-out + egress filtering + pinning are non-negotiable.
 
 #### 3.2.2 HallucinationMetric: non-deterministic and semantically wrong
 - **Issue #1146** (open, Nov 2024): Same inputs → score of 0.0 in one run, 1.0 in the next. Author reports the metric also only assigns 0.0 or 1.0 rather than a continuous range. Maintainer asked for a reproducer in 2024 and the thread went quiet.
@@ -133,7 +188,7 @@ From the v0.4.x release notes and merged-but-unreleased PRs:
 - v1.0 roadmap teased in `#2231`
 
 ### 4.2 DeepEval — what's coming
-- `#2497` (the OpenTelemetry hijack) is assigned and open; expect a near-term patch given the severity. Until fixed, this is the deciding issue for security-conscious adopters.
+- `#2497` (OpenTelemetry hijack) — the hijack code has been **removed from `main`** since the issue was filed against v3.7.7. The current telemetry layer is opt-out-respecting and uses PostHog + a zero-sampling Sentry SDK. See §3.2.1 for verification. The next release should formally close the loop on this; expect it in the next minor version.
 - `#2223` — multi-turn extension for Task Completion and Tool Correctness metrics, currently marked `awaiting release`.
 - `#2407`, `#2401`, `#2396`, `#2385`, `#2352`, `#2351` — recent issues opened Jan 2026, in various stages of investigation.
 - DeepTeam (red-teaming sibling project) actively developed — DeepEval is becoming a platform, not just a library.
@@ -149,7 +204,7 @@ Both frameworks have been studied independently and the findings are useful evid
 - **Patronus AI commentary:** Notes that Ragas occasionally fails to extract statements from RAG responses, producing wrong computations. They recommend Lynx for hallucination detection over Ragas in long-context cases.
 - **HaluBench benchmark:** Ragas Faithfulness underperformed Lynx on long-context hallucination detection.
 
-For DeepEval, the independent critique is more sparse (it's younger as a project), but the existence of issue `#1853` — Aikido security scanner flagging DeepEval as malware due to its telemetry behavior — is a meaningful external signal that the telemetry approach is outside normal library conventions.
+For DeepEval, the independent critique is more sparse (it's younger as a project), but issue `#1853` — Aikido security scanner flagging DeepEval as malware due to its telemetry behavior — was an external signal that the telemetry approach was outside normal library conventions. The current `main` removes the most egregious behaviors flagged in that scan; the default-on PostHog/Sentry posture remains.
 
 ---
 
@@ -165,12 +220,13 @@ For DeepEval, the independent critique is more sparse (it's younger as a project
 ### When DeepEval is the right choice
 - The use case spans general LLM apps, agents, and conversational systems — not just RAG.
 - The team values release velocity and broader metric coverage.
-- The team is comfortable with the Confident AI commercial relationship and the resulting telemetry posture **— OR willing to wait for `#2497` to be fixed and audit the telemetry code path itself before adoption.**
+- The team can set `DEEPEVAL_TELEMETRY_OPT_OUT=YES` in container base images and egress-filter the telemetry destinations (`api.ipify.org`, `*.ingest.sentry.io`, `us.i.posthog.com`).
+- The team is comfortable pinning versions and reviewing `deepeval/telemetry.py` diffs on each upgrade.
 - CI integration in a Pytest-style pattern is a hard requirement.
 - Red-teaming/safety evaluation matters (DeepTeam sibling project).
 
 ### When neither is right
-- Strict compliance environment (SOC 2, HIPAA, PCI) and you can't audit and stub the telemetry pipeline → wait for DeepEval `#2497` to land, or consider alternatives like Patronus, Arize Phoenix, Langfuse evals, or hand-rolled evaluation against your own ground truth.
+- Strict compliance environment (SOC 2, HIPAA, PCI) where you can't deploy network-level egress filtering AND can't trust env-var-based opt-out as a sole control → consider alternatives like Patronus, Arize Phoenix, Langfuse evals, or hand-rolled evaluation against your own ground truth.
 - Long-context hallucination is the primary concern → consider Lynx, which the HaluBench results suggest outperforms Ragas Faithfulness.
 - Determinism and reproducibility are paramount → consider deterministic statistical metrics (BLEU, ROUGE, exact match, semantic similarity via fixed embeddings) plus a fixed-seed judge LLM, rather than either framework's LLM-as-a-judge defaults.
 
@@ -178,7 +234,7 @@ For DeepEval, the independent critique is more sparse (it's younger as a project
 
 ## 7. Talking points for the upcoming review
 
-1. "DeepEval v3.7.7 has an open and assigned security issue (`#2497`) that causes any host application using OpenTelemetry to leak all its trace data to DeepEval's New Relic account. Until that's fixed, what's our plan for sandboxing or auditing the telemetry pipeline?"
+1. "DeepEval v3.7.7 shipped a serious OpenTelemetry hijack (`#2497`) that exfiltrated host application traces to a third party. That code has been removed from `main`, but the framework still defaults to PostHog + Sentry telemetry. Our plan: pin to a post-fix version, set `DEEPEVAL_TELEMETRY_OPT_OUT=YES` in CI and base images, egress-filter the destinations, and re-audit `telemetry.py` on each upgrade. Is the team aligned on enforcing all four controls?"
 2. "Ragas is in its third major architectural rewrite in under two years (v0.2 → v0.3 → v0.4), and its testset-generation module's future is being publicly debated by the maintainers (`#2231`). What does our upgrade and pinning strategy look like?"
 3. "Independent academic work (arxiv:2407.12873) found that two of Ragas's headline metrics didn't align with subject-matter-expert judgment. Are we using Answer Correctness or Answer Relevancy as gates, and if so, how do we know the scores reflect reality?"
 4. "DeepEval's HallucinationMetric has open issues showing it's non-deterministic on the same input (`#1146`) and arguably measures summarization completeness rather than hallucination (`#730`). What's our validation strategy before we trust it in CI?"
@@ -191,7 +247,8 @@ For DeepEval, the independent critique is more sparse (it's younger as a project
 All claims in this report are sourced from public GitHub issues, release notes, official documentation, and third-party engineering or academic publications:
 
 - GitHub: `vibrantlabsai/ragas` (formerly `explodinggradients/ragas`) — repository stats, releases, issues #452, #580, #1064, #1212, #1403, #1444, #1546, #1819, #2231, #2351, #2362, #2365, #2366, #2369, #2375, #2378, #2381, #2398, #2401, #2402, #2407, #2410
-- GitHub: `confident-ai/deepeval` — repository stats, releases, issues #730, #757, #1146, #1340, #1358, #1647, #1750, #1853, #2092, #2223, #2280, #2351, #2352, #2385, #2396, #2401, #2407, #2497
+- GitHub: `confident-ai/deepeval` — repository stats, releases, issues #730, #757, #1146, #1340, #1358, #1613, #1647, #1750, #1853, #2092, #2223, #2280, #2351, #2352, #2385, #2396, #2401, #2407, #2497; PRs #1596, #1976
+- **Primary source verification:** `deepeval/telemetry.py` on `main` branch, read directly May 22, 2026 (518 lines)
 - Ragas v0.3 → v0.4 official migration guide (docs.ragas.io)
 - DeepEval v3.0 release notes
 - arXiv:2309.15217 (the original Ragas paper, EACL 2024)
