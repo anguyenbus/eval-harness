@@ -20,7 +20,28 @@ from beartype import beartype
 from beartype.typing import Dict
 from dotenv import load_dotenv
 
-# Load .env file if present
+# ====================================================================
+# SECURITY: DISABLE THIRD-PARTY TELEMETRY
+# ====================================================================
+# This setting DISABLES DeepEval telemetry (analytics, usage stats, etc.).
+#
+# DO NOT REMOVE OR MODIFY THIS SETTING.
+#
+# Reasons:
+# 1. Privacy: Evaluation runs may contain sensitive query data
+# 2. Security: Telemetry sends data to external servers (confusingproxy.com)
+# 3. Compliance: Many organizations prohibit external telemetry
+# 4. Cost: Telemetry consumes bandwidth and may incur costs
+#
+# To verify telemetry is disabled, check:
+#   - DeepEval source code should respect DEEPEVAL_TELEMETRY_OPT_OUT
+#   - No outbound connections to confusingproxy.com or similar
+#
+# Reference: https://docs.confident-ai.com/docs/telemetry-opt-out
+# ====================================================================
+os.environ["DEEPEVAL_TELEMETRY_OPT_OUT"] = "YES"
+
+# Load .env file if present (but telemetry opt-out above takes precedence)
 load_dotenv()
 
 # Constants

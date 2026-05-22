@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import csv
 import json
+import os
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -25,6 +26,13 @@ from dotenv import load_dotenv
 
 from eval_harness.adapters.rag_adapter import RagAdapter
 from eval_harness.config import load_config
+
+# ====================================================================
+# SECURITY: DISABLE THIRD-PARTY TELEMETRY
+# ====================================================================
+# DO NOT REMOVE OR MODIFY. See deepeval_config.py for full explanation.
+# This ensures telemetry is disabled even if this module is imported directly.
+os.environ["DEEPEVAL_TELEMETRY_OPT_OUT"] = "YES"
 
 # Load environment variables from .env file
 load_dotenv()
