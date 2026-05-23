@@ -871,4 +871,4 @@ PBI-35 (progress bar)┘
 - P0 + P1: ~2 weeks
 - All PBIs: ~4 weeks
 
-**Priority for hostile review**: P0 items block honest result interpretation. Do them first.
+**Priority for adversarial review**: P0 items block honest result interpretation. Do them first.

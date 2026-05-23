@@ -10,7 +10,7 @@
 
 ---
 
-## Hostile Review Questions (Answer Before Review)
+## adversarial Review Questions (Answer Before Review)
 
 ### Q1: "Why do we need an A/B tool? Can't we just use diff?"
 
@@ -37,7 +37,7 @@ diff results_a.json results_b.json
 # Answer: diff doesn't tell you.
 ```
 
-**Hostile reviewer says**: "You claim your new model is better. faithfulness went from 0.75 to 0.78. Is that +0.03 real or variance? Give me a p-value."
+**adversarial reviewer says**: "You claim your new model is better. faithfulness went from 0.75 to 0.78. Is that +0.03 real or variance? Give me a p-value."
 
 **PBI-47 addresses this**.
 
@@ -60,7 +60,7 @@ diff results_a.json results_b.json
 - Scenario 1: You ship B thinking it's better. It's actually noise.
 - Scenario 2: You don't ship B thinking it's noise. It's actually better.
 
-**Hostile reviewer says**: "I'm not shipping your model change based on 'looks better'. Give me a p-value or I'm not approving."
+**adversarial reviewer says**: "I'm not shipping your model change based on 'looks better'. Give me a p-value or I'm not approving."
 
 **PBI-48 addresses this**.
 
@@ -79,7 +79,7 @@ Variant B: faithfulness=0.78
 Difference: +0.03
 ```
 
-**Hostile reviewer says**: "I need to present this to the product team. They want charts, colors, something they can forward. Console output doesn't cut it."
+**adversarial reviewer says**: "I need to present this to the product team. They want charts, colors, something they can forward. Console output doesn't cut it."
 
 **PBI-49 addresses this**.
 
@@ -111,7 +111,7 @@ results/variant_b_20260521.json
 # There's no: eval-compare variant_a.json variant_b.json
 ```
 
-**Hostile reviewer says**: "I ran two variants. Give me a one-liner to compare them."
+**adversarial reviewer says**: "I ran two variants. Give me a one-liner to compare them."
 
 ### Acceptance Criteria
 
@@ -420,7 +420,7 @@ uv run eval-compare \
 - [ ] Exit codes for CI/CD
 - [ ] JSON output option
 
-### What a Hostile Reviewer Will Ask
+### What a adversarial Reviewer Will Ask
 
 **Q**: "Why rich for colors? Standard ANSI works."
 
@@ -460,7 +460,7 @@ Current comparison shows raw differences but doesn't answer "is this significant
 - Can't make data-driven decisions
 - Risk shipping noise or missing improvements
 
-**Hostile reviewer says**: "Your A/B test shows +3% improvement. Is that real or did you get lucky? Give me a p-value."
+**adversarial reviewer says**: "Your A/B test shows +3% improvement. Is that real or did you get lucky? Give me a p-value."
 
 ### Solution
 
@@ -820,7 +820,7 @@ uv run eval-compare-stats \
 - [ ] Handles NaN values
 - [ ] Paired comparison (same query_id)
 
-### What a Hostile Reviewer Will Ask
+### What a adversarial Reviewer Will Ask
 
 **Q**: "Why bootstrap instead of t-test?"
 
@@ -861,7 +861,7 @@ This is fine.
 **For product managers**:
 "Can you send me a report I can forward to the product team?"
 
-**Hostile reviewer says**: "I need a report that looks professional. Something with charts, colors, executive summary. Console output doesn't work for non-engineers."
+**adversarial reviewer says**: "I need a report that looks professional. Something with charts, colors, executive summary. Console output doesn't work for non-engineers."
 
 ### Acceptance Criteria
 
@@ -1216,7 +1216,7 @@ open comparison.html
 - [ ] Professional styling
 - [ ] Single self-contained file (email-able)
 
-### What a Hostile Reviewer Will Ask
+### What a adversarial Reviewer Will Ask
 
 **Q**: "Why not use JavaScript charting library?"
 

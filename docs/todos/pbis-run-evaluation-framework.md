@@ -10,7 +10,7 @@
 
 ---
 
-## Hostile Review Questions (Answer Before Review)
+## adversarial Review Questions (Answer Before Review)
 
 ### Q1: "Why is broken regression check P0? Just fix the JSON format."
 
@@ -37,7 +37,7 @@ for metric_name, current_data in current.get("metrics", {}).items():
 
 **Result**: `regression_check.py` always finds 0 metrics to check. Passes silently even when regression exists.
 
-**Hostile reviewer says**: "I rely on regression detection to catch bad deploys. Your tool says 'no regression' when there IS a regression. Now I shipped bad code. Fix your detector or delete it."
+**adversarial reviewer says**: "I rely on regression detection to catch bad deploys. Your tool says 'no regression' when there IS a regression. Now I shipped bad code. Fix your detector or delete it."
 
 **PBI-41 addresses this**.
 
@@ -68,7 +68,7 @@ uv run eval-rag --dataset legal_rag_bench --slice nano
 4. Missing dependencies
 5. Invalid parameter combinations
 
-**Hostile reviewer says**: "I want to know my eval will work BEFORE I wait 2 hours. Don't make me discover failures at minute 119."
+**adversarial reviewer says**: "I want to know my eval will work BEFORE I wait 2 hours. Don't make me discover failures at minute 119."
 
 **PBI-42 addresses this**.
 
@@ -96,7 +96,7 @@ uv run eval-rag --dataset legal_rag_bench --slice nano
 # That's 10 hours + manual computation
 ```
 
-**Hostile reviewer says**: "I need to know if my 0.75 faithfulness is 0.75 ± 0.05 or 0.75 ± 0.25. Don't make me run 5 times and do math manually."
+**adversarial reviewer says**: "I need to know if my 0.75 faithfulness is 0.75 ± 0.05 or 0.75 ± 0.25. Don't make me run 5 times and do math manually."
 
 **PBI-43 addresses this**.
 
@@ -123,7 +123,7 @@ df.to_csv(output_path)
 # User thinks: "Is it frozen? Did it crash?"
 ```
 
-**Hostile reviewer says**: "I run a 1000-query eval. No output for 30 minutes. I kill it and restart. Now I wasted 30 minutes. Give me a progress bar."
+**adversarial reviewer says**: "I run a 1000-query eval. No output for 30 minutes. I kill it and restart. Now I wasted 30 minutes. Give me a progress bar."
 
 **PBI-44 addresses this**.
 
@@ -455,7 +455,7 @@ uv run eval-regression-check current.json baseline.json --blocklist total_ms lat
 - [ ] CLI command `eval-regression-check` added
 - [ ] Exit code 1 on regression
 
-### What a Hostile Reviewer Will Ask
+### What a adversarial Reviewer Will Ask
 
 **Q**: "Why remove severity check? What if we want blocker-only checks?"
 
@@ -697,7 +697,7 @@ uv run eval-rag --dataset legal_rag_bench --slice nano --dry-run
 - [ ] Clear success/failure output
 - [ ] Works for both eval-rag and eval-parsing
 
-### What a Hostile Reviewer Will Ask
+### What a adversarial Reviewer Will Ask
 
 **Q**: "Why check model with tiktoken instead of actual API call?"
 
@@ -741,7 +741,7 @@ uv run eval-rag --dataset legal_rag_bench --slice nano
 # Answer: Unknown without running multiple times.
 ```
 
-**Hostile reviewer says**: "You claim 0.75. I run it and get 0.65. Is your system broken or is that normal variance? Give me stdev."
+**adversarial reviewer says**: "You claim 0.75. I run it and get 0.65. Is your system broken or is that normal variance? Give me stdev."
 
 ### Solution
 
@@ -887,7 +887,7 @@ uv run eval-rag --dataset legal_rag_bench --slice nano --repeat 5
 - [ ] Dataset reused across runs (not reloaded)
 - [ ] Tested with repeat=5
 
-### What a Hostile Reviewer Will Ask
+### What a adversarial Reviewer Will Ask
 
 **Q**: "Why not use scipy for stdev?"
 
@@ -925,7 +925,7 @@ for item in dataset:
 # User: "Is it working? Should I kill it?"
 ```
 
-**Hostile reviewer says**: "I run 100 queries. No output for 20 minutes. I kill it. It was working. Now I wasted 20 minutes and API quota."
+**adversarial reviewer says**: "I run 100 queries. No output for 20 minutes. I kill it. It was working. Now I wasted 20 minutes and API quota."
 
 ### Solution
 
@@ -1015,7 +1015,7 @@ Or add to main dependencies (tqdm is lightweight).
 - [ ] Fallback if tqdm missing
 - [ ] `--no-progress` flag working
 
-### What a Hostile Reviewer Will Ask
+### What a adversarial Reviewer Will Ask
 
 **Q**: "Why tqdm rich.progress exists?"
 

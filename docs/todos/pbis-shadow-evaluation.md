@@ -9,7 +9,7 @@
 
 ---
 
-## Hostile Review Questions (Answer Before Review)
+## adversarial Review Questions (Answer Before Review)
 
 ### Q1: "Why do we need shadow mode? Can't we just AB test?"
 
@@ -29,7 +29,7 @@
 - Variant B has bug → 0 users affected
 - Compare results offline
 
-**Hostile reviewer says**: "I want to test a new embedding model on production traffic. If it's bad, I don't want users to see bad answers. Shadow mode or I can't deploy."
+**adversarial reviewer says**: "I want to test a new embedding model on production traffic. If it's bad, I don't want users to see bad answers. Shadow mode or I can't deploy."
 
 **PBI-45 addresses this**.
 
@@ -48,7 +48,7 @@
 
 **Evidence**: None of this exists. Need to build from scratch.
 
-**Hostile reviewer says**: "16 hours seems long until you list requirements. That's a full server. Not a simple logger."
+**adversarial reviewer says**: "16 hours seems long until you list requirements. That's a full server. Not a simple logger."
 
 ---
 
@@ -72,7 +72,7 @@ uv run eval-rag --dataset production_january --shadow --output shadow.json
 # That's 2 hours every time
 ```
 
-**Hostile reviewer says**: "I want to know: did shadow beat production? Don't make me write comparison scripts. Give me a command."
+**adversarial reviewer says**: "I want to know: did shadow beat production? Don't make me write comparison scripts. Give me a command."
 
 **PBI-46 addresses this**.
 
@@ -492,7 +492,7 @@ async def handle_query(request: QueryRequest):
 - [ ] Health check endpoint
 - [ ] Tested with mock production traffic
 
-### What a Hostile Reviewer Will Ask
+### What a adversarial Reviewer Will Ask
 
 **Q**: "What if shadow server is down?"
 
@@ -537,7 +537,7 @@ results/
 - No automatic matching by query_id
 - Manual comparison required
 
-**Hostile reviewer says**: "I ran shadow for a day. Now tell me: did shadow beat production? Don't make me write Python to find out."
+**adversarial reviewer says**: "I ran shadow for a day. Now tell me: did shadow beat production? Don't make me write Python to find out."
 
 ### Solution
 
@@ -815,7 +815,7 @@ uv run eval-shadow-compare \
 - [ ] Report generation (JSON + stdout)
 - [ ] Handles missing queries gracefully
 
-### What a Hostile Reviewer Will Ask
+### What a adversarial Reviewer Will Ask
 
 **Q**: "Why paired t-test instead of Wilcoxon?"
 

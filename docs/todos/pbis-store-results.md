@@ -13,7 +13,7 @@
 
 ---
 
-## Hostile Review Questions (Answer Before Review)
+## adversarial Review Questions (Answer Before Review)
 
 ### Q1: "Why do we need a database? Flat files work fine."
 
@@ -32,7 +32,7 @@ $ grep "faithfulness_score" results/*.csv | wc -l
 # Requires: find, grep, cut, sort, join. Not trivial.
 ```
 
-**Hostile reviewer says**: "I can't query across runs. I can't track metric trends over time. I can't join datasets with results."
+**adversarial reviewer says**: "I can't query across runs. I can't track metric trends over time. I can't join datasets with results."
 
 **Database solves**:
 - Cross-run queries: `WHERE faithfulness < 0.8 AND timestamp > '2026-05-01'`
@@ -68,7 +68,7 @@ $ cat results/legal_rag_bench_nano_results_20260521_210254.json
 
 **Problem**: These might be identical runs (same config, same dataset) but we can't tell.
 
-**Hostile reviewer says**: "You ran the same eval twice because `gpt-4o` alias changed between runs. Now I have two files. Which one is correct?"
+**adversarial reviewer says**: "You ran the same eval twice because `gpt-4o` alias changed between runs. Now I have two files. Which one is correct?"
 
 **Deduplication solves**:
 - Hash of `{config_hash, dataset_sha, model_snapshot}`
@@ -96,7 +96,7 @@ $ find results/ -name "*.json" -mtime +7 -delete
 # Yes. Now regression detection is broken.
 ```
 
-**Hostile reviewer says**: "You deleted my baseline. Now I can't detect regressions. `rm` is not a retention policy."
+**adversarial reviewer says**: "You deleted my baseline. Now I can't detect regressions. `rm` is not a retention policy."
 
 **Retention policy needs**:
 - Dry-run mode: show what would be deleted
@@ -133,7 +133,7 @@ def upload_parquet_to_s3(
         return False  # ← Silent failure. Is this safe?
 ```
 
-**Hostile reviewer says**:
+**adversarial reviewer says**:
 1. "Where do credentials come from? `~/.aws/credentials`? Env vars? IAM role?"
 2. "What if upload fails? We swallow the exception. Is the trace lost?"
 3. "What bucket? Who has access? Is encryption enabled?"
@@ -558,7 +558,7 @@ database = [
 - [ ] Query CLI working
 - [ ] Tests added for DB operations
 
-### What a Hostile Reviewer Will Ask
+### What a adversarial Reviewer Will Ask
 
 **Q**: "Why not use an ORM like SQLAlchemy?"
 
@@ -802,7 +802,7 @@ None. Uses stdlib only.
 - [ ] Tests for hash collision resistance (use different configs)
 - [ ] Tests for exact match detection (same config, different timestamp)
 
-### What a Hostile Reviewer Will Ask
+### What a adversarial Reviewer Will Ask
 
 **Q**: "What about hash collision?"
 
@@ -844,7 +844,7 @@ $ du -sh results/
 # Manual rm risks deleting baselines
 ```
 
-**Hostile reviewer says**: "I can't find the baseline in 500 files. `rm` is scary. I need a safe way to clean up."
+**adversarial reviewer says**: "I can't find the baseline in 500 files. `rm` is scary. I need a safe way to clean up."
 
 ### Solution: Configurable Retention Policy
 
@@ -1110,7 +1110,7 @@ if args.cleanup or args.cleanup_dry_run:
 - [ ] CLI flags added
 - [ ] Tests for retention logic
 
-### What a Hostile Reviewer Will Ask
+### What a adversarial Reviewer Will Ask
 
 **Q**: "What if I accidentally delete my baseline?"
 
@@ -1168,7 +1168,7 @@ def upload_parquet_to_s3(
         return False  # ← Silent failure. Trace lost?
 ```
 
-**Hostile reviewer says**:
+**adversarial reviewer says**:
 - "Where do I put credentials?"
 - "What IAM permissions do I need?"
 - "Is the data encrypted at rest?"
@@ -1588,7 +1588,7 @@ def upload_parquet_to_s3(
 - [ ] Troubleshooting section added
 - [ ] Code docstring updated with reference to docs
 
-### What a Hostile Reviewer Will Ask
+### What a adversarial Reviewer Will Ask
 
 **Q**: "Why not require SSE-KMS instead of AES256?"
 

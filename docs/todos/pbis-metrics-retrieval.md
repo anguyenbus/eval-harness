@@ -12,7 +12,7 @@
 
 ---
 
-## Hostile Review Questions (Answer Before Review)
+## adversarial Review Questions (Answer Before Review)
 
 ### Q1: "html_summary.py is broken. Why is this P0 and not P2?"
 
@@ -33,7 +33,7 @@ query_id,question,gold_answer,generated_answer,faithfulness_score,context_precis
 
 **Result**: `KeyError: 'label'` or `KeyError: 'score'` when running `eval-html`.
 
-**Hostile reviewer says**: "You have an HTML report feature. I try to use it. It crashes. Now I think the project is unmaintained. Either fix it or delete it."
+**adversarial reviewer says**: "You have an HTML report feature. I try to use it. It crashes. Now I think the project is unmaintained. Either fix it or delete it."
 
 **PBI-36 addresses this**.
 
@@ -56,7 +56,7 @@ query_id,question,gold_answer,generated_answer,faithfulness_score,context_precis
 
 **Question**: Is 0.75 good? Is it 0.75 ± 0.05 (precise) or 0.75 ± 0.35 (meaningless)?
 
-**Hostile reviewer says**: "You claim your system scores 0.75. I run it again. I get 0.65. I claim you're wrong. You claim variance. Where's your CI?"
+**adversarial reviewer says**: "You claim your system scores 0.75. I run it again. I get 0.65. I claim you're wrong. You claim variance. Where's your CI?"
 
 **Without CI**:
 - Can't distinguish noise from signal
@@ -95,7 +95,7 @@ query_id,question,gold_answer,generated_answer,faithfulness_score,context_precis
 }
 ```
 
-**Hostile reviewer says**: "What's in `reasoning`? What's a `claim` vs `truth`? How do I interpret this? Don't make me reverse-engineer your data structure."
+**adversarial reviewer says**: "What's in `reasoning`? What's a `claim` vs `truth`? How do I interpret this? Don't make me reverse-engineer your data structure."
 
 **PBI-38 addresses this**.
 
@@ -125,7 +125,7 @@ results/legal_rag_bench_nano_results_20260521_203524.json
 
 **That's 100 lines of Python. Every time.**
 
-**Hostile reviewer says**: "I want to see if my system is improving. I have 50 result files. How do I plot faithfulness vs time? Don't tell me to write a script."
+**adversarial reviewer says**: "I want to see if my system is improving. I have 50 result files. How do I plot faithfulness vs time? Don't tell me to write a script."
 
 **PBI-39 addresses this**.
 
@@ -148,7 +148,7 @@ Current workflow:
 
 **Every time. For every eval.**
 
-**Hostile reviewer says**: "I want a PRD-ready report. Not 'open Excel and make charts'. Automation matters."
+**adversarial reviewer says**: "I want a PRD-ready report. Not 'open Excel and make charts'. Automation matters."
 
 **PBI-40 addresses this**.
 
@@ -573,7 +573,7 @@ uv run eval-html results/*.csv -m context_precision_score
 - [ ] Pass/fail from `judge_verdict` (not `label`)
 - [ ] Multiple metrics shown in table
 
-### What a Hostile Reviewer Will Ask
+### What a adversarial Reviewer Will Ask
 
 **Q**: "What if my CSV has different columns?"
 
@@ -855,7 +855,7 @@ dependencies = [
 - [ ] Handles NaN values correctly
 - [ ] Handles small samples (n < 2) gracefully
 
-### What a Hostile Reviewer Will Ask
+### What a adversarial Reviewer Will Ask
 
 **Q**: "Why bootstrap 10,000 times? That's slow."
 
@@ -910,7 +910,7 @@ dependencies = [
 }
 ```
 
-**Hostile reviewer says**: "What's a `claim` vs `truth`? What's a `verdict`? Don't make me read the code."
+**adversarial reviewer says**: "What's a `claim` vs `truth`? What's a `verdict`? Don't make me read the code."
 
 ### Acceptance Criteria
 
@@ -1193,7 +1193,7 @@ results/legal_rag_bench_nano_results_20260521_203524.json
 # Answer: Parse filenames, load JSONs, extract metrics, plot. 100 lines of Python.
 ```
 
-**Hostile reviewer says**: "I want to see metric trends. Don't make me write a script every time."
+**adversarial reviewer says**: "I want to see metric trends. Don't make me write a script every time."
 
 ### Solution Options
 
@@ -1530,7 +1530,7 @@ uv run eval-rag --dataset legal_rag_bench --slice nano
 # That's 5 minutes every time
 ```
 
-**Hostile reviewer says**: "I want a one-page PDF report with charts. Not 'here's a CSV, go make your own charts'."
+**adversarial reviewer says**: "I want a one-page PDF report with charts. Not 'here's a CSV, go make your own charts'."
 
 ### Acceptance Criteria
 
