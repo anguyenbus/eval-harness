@@ -29,6 +29,42 @@ from eval_harness.replay.phoenix_client import PhoenixClient
 os.environ["DEEPEVAL_TELEMETRY_OPT_OUT"] = "YES"
 load_dotenv()
 
+# Global tracer (initialized once, reused for all questions)
+_tracer_provider: Any = None
+_tracer: Any = None
+
+
+def _get_tracer(phoenix_endpoint: str, project_name: str) -> Any:
+    """
+    Get or initialize global tracer for replay spans.
+
+    Args:
+        phoenix_endpoint: Phoenix server endpoint.
+        project_name: Phoenix project name.
+
+    Returns:
+        Tracer instance or None if initialization fails.
+
+    """
+    global _tracer_provider, _tracer
+
+    if _tracer is not None:
+        return _tracer
+
+    try:
+
+        from eval_harness.stubs.span_generator.tracer import setup_tracer
+
+        _tracer_provider, _tracer = setup_tracer(
+            phoenix_endpoint=phoenix_endpoint,
+            project_name=project_name,
+            batch=True,
+            auto_instrument=False,
+        )
+        return _tracer
+    except Exception:
+        return None
+
 
 def _extract_question_from_span(span: dict[str, Any]) -> str | None:
     """
@@ -183,6 +219,8 @@ def _run_adapter_on_questions(
     adapter: RagAdapter,
     corpus_dir: Path,
     expected_answers: list[str] | None = None,
+    tracer: Any = None,
+    candidate_name: str = "candidate",
 ) -> list[dict[str, float]]:
     """
     Run RAG adapter on questions and return all scores.
@@ -192,11 +230,18 @@ def _run_adapter_on_questions(
         adapter: RAG adapter to run.
         corpus_dir: Path to document corpus.
         expected_answers: Optional list of expected answers for evaluation.
+        tracer: Optional tracer for creating parent spans.
+        candidate_name: Name for candidate (used in span naming).
 
     Returns:
         List of dicts with metric scores per question.
 
     """
+    from openinference.semconv.trace import (
+        OpenInferenceSpanKindValues,
+        SpanAttributes,
+    )
+
     from eval_harness.adapters.deepeval_adapter import DeepEvalEvaluator
 
     # Initialize evaluator
@@ -209,7 +254,18 @@ def _run_adapter_on_questions(
 
     all_scores = []
     for i, question in enumerate(questions):
+        span_context = None
         try:
+            # Create parent span for replay query
+            if tracer is not None:
+                span_context = tracer.start_as_current_span(
+                    name=f"replay_{candidate_name}",
+                    openinference_span_kind=OpenInferenceSpanKindValues.CHAIN,
+                )
+                span = span_context.__enter__()
+                span.set_attribute(SpanAttributes.INPUT_VALUE, question)
+                span.set_attribute(SpanAttributes.OUTPUT_VALUE, "")
+
             # Query RAG system
             output = adapter.query(question, corpus_dir)
 
@@ -226,8 +282,45 @@ def _run_adapter_on_questions(
             # Add latency
             timings = output.get("timings_ms", {})
             scores["rag_latency_total_ms"] = timings.get("total", 0.0)
+            scores["rag_latency_retrieval_ms"] = timings.get("retrieval", 0.0)
+            scores["rag_latency_generation_ms"] = timings.get("generation", 0.0)
+
+            # Update span with output and metrics
+            if span_context is not None:
+                answer_text = output.get("answer", {}).get("text", "")
+                span.set_attribute(SpanAttributes.OUTPUT_VALUE, answer_text)
+
+                # Store evaluation metrics as span attributes
+                # (same format as synthetic spans)
+                span.set_attribute("rag_faithfulness", scores.get("faithfulness", 0.0))
+                span.set_attribute(
+                    "rag_context_precision", scores.get("context_precision", 0.0)
+                )
+                span.set_attribute(
+                    "rag_context_recall", scores.get("context_recall", 0.0)
+                )
+                span.set_attribute(
+                    "rag_answer_relevancy", scores.get("answer_relevancy", 0.0)
+                )
+                span.set_attribute(
+                    "rag_latency_total_ms", scores.get("rag_latency_total_ms", 0.0)
+                )
+                span.set_attribute(
+                    "rag_latency_retrieval_ms",
+                    scores.get("rag_latency_retrieval_ms", 0.0),
+                )
+                span.set_attribute(
+                    "rag_latency_generation_ms",
+                    scores.get("rag_latency_generation_ms", 0.0),
+                )
+
             all_scores.append(scores)
+
+            if span_context is not None:
+                span_context.__exit__(None, None, None)
         except Exception as e:
+            if span_context is not None:
+                span_context.__exit__(None, None, None)
             click.echo(f"WARNING: Error processing question: {e}", err=True)
             all_scores.append({"rag_faithfulness": 0.0, "rag_context_precision": 0.0,
                               "rag_context_recall": 0.0, "rag_answer_relevancy": 0.0,
@@ -369,6 +462,8 @@ def main(
         eval-replay --candidate=stub-local --baseline=stub-local --limit 10
 
     """
+    global _tracer_provider
+
     try:
         # Initialize Phoenix client
         endpoint = phoenix_endpoint or "http://localhost:6006"
@@ -429,7 +524,12 @@ def main(
         click.echo(f"Running candidate: {candidate}")
         candidate_adapter = _get_rag_adapter(candidate, top_k, embedder)
         candidate_scores = _run_adapter_on_questions(
-            questions, candidate_adapter, corpus_dir, expected_answers
+            questions,
+            candidate_adapter,
+            corpus_dir,
+            expected_answers,
+            tracer=_get_tracer(endpoint, project),
+            candidate_name=candidate,
         )
 
         # Calculate candidate averages
@@ -538,7 +638,12 @@ def main(
                 click.echo(f"Running baseline adapter: {baseline}")
                 baseline_adapter = _get_rag_adapter(baseline, top_k, embedder)
                 baseline_results = _run_adapter_on_questions(
-                    questions, baseline_adapter, corpus_dir, expected_answers
+                    questions,
+                    baseline_adapter,
+                    corpus_dir,
+                    expected_answers,
+                    tracer=_get_tracer(endpoint, project),
+                    candidate_name=baseline,
                 )
                 baseline_scores = [
                     s.get("faithfulness", 0.0) for s in baseline_results
@@ -775,9 +880,15 @@ def main(
 
         # Exit with appropriate code (based on primary faithfulness metric)
         if primary_result:
-            sys.exit(0 if primary_result.pass_fail else 1)
+            exit_code = 0 if primary_result.pass_fail else 1
         else:
-            sys.exit(1)
+            exit_code = 1
+
+        # Force flush spans before exit
+        if _tracer_provider is not None:
+            _tracer_provider.force_flush()
+
+        sys.exit(exit_code)
 
     except ConnectionError as e:
         click.echo(f"ERROR: {e}", err=True)
@@ -791,6 +902,10 @@ def main(
 
         traceback.print_exc()
         sys.exit(1)
+    finally:
+        # Ensure spans are flushed
+        if _tracer_provider is not None:
+            _tracer_provider.force_flush()
 
 
 if __name__ == "__main__":
