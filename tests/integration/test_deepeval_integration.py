@@ -15,7 +15,7 @@ class TestDeepEvalIntegration:
 
         from eval_harness.adapters.deepeval_adapter import DeepEvalEvaluator
 
-        evaluator = DeepEvalEvaluator(llm_provider="openai", judge_model="gpt-4o")
+        evaluator = DeepEvalEvaluator(llm_provider="openai", judge_model="gpt-4o-mini")
 
         # Mock RAG output
         rag_output = {
@@ -64,7 +64,7 @@ class TestDeepEvalIntegration:
         from eval_harness.adapters.deepeval_adapter import DeepEvalEvaluator
 
         evaluator = DeepEvalEvaluator(
-            llm_provider="openai", judge_model="gpt-4o", max_concurrent=2
+            llm_provider="openai", judge_model="gpt-4o-mini", max_concurrent=2
         )
 
         # Create multiple RAG outputs
@@ -110,7 +110,7 @@ class TestDeepEvalIntegration:
 
         from eval_harness.adapters.deepeval_adapter import DeepEvalEvaluator
 
-        evaluator = DeepEvalEvaluator(llm_provider="openai", judge_model="gpt-4o")
+        evaluator = DeepEvalEvaluator(llm_provider="openai", judge_model="gpt-4o-mini")
 
         # Create test data
         rag_output = {
@@ -161,7 +161,7 @@ class TestDeepEvalIntegration:
         phoenix_adapter._tracer = None
 
         # Create evaluator
-        evaluator = DeepEvalEvaluator(llm_provider="openai", judge_model="gpt-4o")
+        evaluator = DeepEvalEvaluator(llm_provider="openai", judge_model="gpt-4o-mini")
 
         # Mock metric evaluation
         rag_output = {
@@ -218,7 +218,7 @@ class TestDeepEvalIntegration:
 
         from eval_harness.adapters.deepeval_adapter import DeepEvalEvaluator
 
-        evaluator = DeepEvalEvaluator(llm_provider="openai", judge_model="gpt-4o")
+        evaluator = DeepEvalEvaluator(llm_provider="openai", judge_model="gpt-4o-mini")
 
         # Verify metric keys match RAGAS equivalents
         expected_keys = [
@@ -237,7 +237,7 @@ class TestDeepEvalIntegration:
 
         from eval_harness.adapters.deepeval_adapter import DeepEvalEvaluator
 
-        evaluator = DeepEvalEvaluator(llm_provider="openai", judge_model="gpt-4o")
+        evaluator = DeepEvalEvaluator(llm_provider="openai", judge_model="gpt-4o-mini")
 
         # RAGAS CSV columns (must be preserved)
         ragas_columns = [

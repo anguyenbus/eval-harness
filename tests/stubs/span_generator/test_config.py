@@ -31,7 +31,7 @@ class TestGeneratorConfig:
         config_content = {
             "datasets": {"legal_rag_bench": {"path": "data"}},
             "metrics": {"text_fidelity": {"threshold": 0.95}},
-            "models": {"judge_model": "gpt-4o"},
+            "models": {"judge_model": "gpt-4o-mini"},
             "generator": {
                 "phoenix_endpoint": "http://custom:6006",
                 "project_name": "custom-project",
@@ -62,7 +62,7 @@ class TestGeneratorConfig:
         config_content = {
             "datasets": {"legal_rag_bench": {"path": "data"}},
             "metrics": {"text_fidelity": {"threshold": 0.95}},
-            "models": {"judge_model": "gpt-4o"},
+            "models": {"judge_model": "gpt-4o-mini"},
         }
 
         config_file = tmp_path / "eval_config.yaml"
@@ -84,7 +84,7 @@ class TestGeneratorConfig:
         config_content = {
             "datasets": {"legal_rag_bench": {"path": "data"}},
             "metrics": {"text_fidelity": {"threshold": 0.95}},
-            "models": {"judge_model": "gpt-4o"},
+            "models": {"judge_model": "gpt-4o-mini"},
             "generator": {"phoenix_endpoint": "http://yaml:6006"},
         }
 

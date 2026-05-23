@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, Mock, patch
 import pytest
 
 from eval_harness.stubs.span_generator.loader import (
+    sample_questions,
     GeneratorQuestion,
     _generate_case_id,
     _generate_tenant_id_hashed,
@@ -143,3 +144,69 @@ class TestQuestionLoader:
             assert questions[9].tenant_id_hashed == "synth-tenant-9"
             assert questions[10].tenant_id_hashed == "synth-tenant-0"  # Cycles
             assert questions[11].tenant_id_hashed == "synth-tenant-1"
+
+
+class TestSampleQuestions:
+    """Test deterministic question sampling."""
+
+    def test_same_seed_produces_identical_sequence(self) -> None:
+        """Test that same seed produces identical question sequence."""
+        with patch(
+            "eval_harness.stubs.span_generator.loader.load_legal_rag_bench"
+        ) as mock_loader:
+            # Return 20 mock questions
+            mock_loader.return_value = iter(
+                [(f"q{i}", f"Question {i}", f"p{i}", f"Answer {i}") for i in range(20)]
+            )
+
+            questions1 = sample_questions(limit=10, seed=42)
+            questions2 = sample_questions(limit=10, seed=42)
+
+            assert len(questions1) == len(questions2)
+            for q1, q2 in zip(questions1, questions2, strict=True):
+                assert q1.id == q2.id
+                assert q1.question == q2.question
+
+    def test_different_seeds_produce_different_sequences(self) -> None:
+        """Test that different seeds produce different sequences."""
+        with patch(
+            "eval_harness.stubs.span_generator.loader.load_legal_rag_bench"
+        ) as mock_loader:
+            mock_loader.return_value = iter(
+                [(f"q{i}", f"Question {i}", f"p{i}", f"Answer {i}") for i in range(20)]
+            )
+
+            questions1 = sample_questions(limit=10, seed=42)
+            questions2 = sample_questions(limit=10, seed=123)
+
+            # At least some questions should be different
+            assert questions1[0].id != questions2[0].id or questions1[1].id != questions2[1].id
+
+    def test_limit_parameter_truncates_correctly(self) -> None:
+        """Test that limit parameter truncates correctly."""
+        with patch(
+            "eval_harness.stubs.span_generator.loader.load_legal_rag_bench"
+        ) as mock_loader:
+            mock_loader.return_value = iter(
+                [(f"q{i}", f"Question {i}", f"p{i}", f"Answer {i}") for i in range(20)]
+            )
+
+            questions_5 = sample_questions(limit=5, seed=42)
+            questions_10 = sample_questions(limit=10, seed=42)
+
+            assert len(questions_5) == 5
+            assert len(questions_10) == 10
+            # First 5 should match (same seed)
+            for q5, q10 in zip(questions_5, questions_10[:5], strict=True):
+                assert q5.id == q10.id
+
+    def test_default_values_match_constants(self) -> None:
+        """Test that default values match spec constants."""
+        from eval_harness.stubs.span_generator.loader import (
+    sample_questions,
+            DEFAULT_DEMO_QUESTIONS,
+            DEFAULT_DEMO_SEED,
+        )
+
+        assert DEFAULT_DEMO_QUESTIONS == 50
+        assert DEFAULT_DEMO_SEED == 42

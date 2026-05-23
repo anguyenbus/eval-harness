@@ -23,13 +23,13 @@ datasets:
     # DeepEval LLM-judge configuration
     deepeval:
       enabled: true
-      judge_model: gpt-4o
+      judge_model: gpt-4o-mini
       judge_model_provider: openai
       temperature: 0.0
       max_concurrent: 10
     # NOTE: RAGAS configuration is deprecated. Use deepeval section above.
     ragas:
-      judge_model: gpt-4o
+      judge_model: gpt-4o-mini
       judge_model_provider: openai
       temperature: 0
 

@@ -20,6 +20,10 @@ from eval_harness.datasets import load_legal_rag_bench
 
 NUM_SYNTHETIC_TENANTS: Final[int] = 10
 
+# Demo showcase default constants
+DEFAULT_DEMO_QUESTIONS: Final[int] = 50
+DEFAULT_DEMO_SEED: Final[int] = 42
+
 
 @beartype
 @dataclass(frozen=True)
@@ -121,3 +125,47 @@ def iter_questions(
             case_id=_generate_case_id(index),
             tenant_id_hashed=_generate_tenant_id_hashed(index),
         )
+
+
+@beartype
+def sample_questions(
+    limit: int = DEFAULT_DEMO_QUESTIONS,
+    seed: int = DEFAULT_DEMO_SEED,
+    cache_dir: Path = Path("data/rag/legal_rag_bench"),
+) -> list[GeneratorQuestion]:
+    """
+    Sample questions deterministically from legal-rag-bench dataset.
+
+    This function provides reproducible sampling by setting a random seed
+    before collecting questions. The same seed and limit will always produce
+    the same list of questions.
+
+    Args:
+        limit: Maximum number of questions to sample. Default: 50.
+        seed: Random seed for reproducibility. Default: 42.
+        cache_dir: Path to dataset cache directory.
+
+    Returns:
+        List of GeneratorQuestion objects with synthetic metadata.
+
+    Example:
+        >>> questions = sample_questions(limit=10, seed=42)
+        >>> len(questions)
+        10
+        >>> # Same seed produces identical results
+        >>> questions2 = sample_questions(limit=10, seed=42)
+        >>> questions[0].question == questions2[0].question
+        True
+
+    """
+    # Set seed for reproducibility
+    random.seed(seed)
+
+    # Load all questions first (need to materialise for shuffling)
+    all_questions = list(iter_questions(limit=None, cache_dir=cache_dir))
+
+    # Shuffle with the seeded random state
+    random.shuffle(all_questions)
+
+    # Return limited sample
+    return all_questions[:limit]

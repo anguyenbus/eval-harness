@@ -133,11 +133,12 @@ class PhoenixClient:
         root_mask = spans_df["parent_id"].isna() | (spans_df["parent_id"] == "")
         root_spans = spans_df[root_mask]
 
-        # Filter for synthetic marker
-        synthetic_col = "attributes.eval_harness.synthetic"
-        if synthetic_col in root_spans.columns:
+        # Filter for synthetic spans by name (synthetic_rag_query)
+        # Note: Using span name instead of synthetic marker because nested
+        # eval_harness.synthetic attribute doesn't filter correctly in DataFrame
+        if "name" in root_spans.columns:
             root_spans = root_spans[
-                root_spans[synthetic_col].astype(str).str.lower() == "true"
+                root_spans["name"] == "synthetic_rag_query"
             ]
 
         # Apply additional filters

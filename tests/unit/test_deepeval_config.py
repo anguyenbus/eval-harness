@@ -34,9 +34,9 @@ class TestDeepEvalConfig:
         """Test OpenAI provider initialization with API key."""
         monkeypatch.setenv("OPENAI_API_KEY", "test-key")
 
-        llm = get_deepeval_llm(provider="openai", model="gpt-4o")
+        llm = get_deepeval_llm(provider="openai", model="gpt-4o-mini")
         assert llm is not None
-        assert llm.get_model_name() == "gpt-4o"
+        assert llm.get_model_name() == "gpt-4o-mini"
 
     def test_get_deepeval_llm_bedrock(self, monkeypatch):
         """Test Bedrock provider initialization."""
@@ -66,14 +66,14 @@ class TestDeepEvalConfig:
         monkeypatch.delenv("OPENAI_API_KEY", raising=False)
 
         with pytest.raises(ValueError, match="OPENAI_API_KEY environment variable"):
-            get_deepeval_llm(provider="openai", model="gpt-4o")
+            get_deepeval_llm(provider="openai", model="gpt-4o-mini")
 
     def test_get_deepeval_llm_invalid_provider(self, monkeypatch):
         """Test that invalid provider raises ValueError."""
         monkeypatch.setenv("OPENAI_API_KEY", "test-key")
 
         with pytest.raises(ValueError, match="Unsupported provider"):
-            get_deepeval_llm(provider="invalid", model="gpt-4o")
+            get_deepeval_llm(provider="invalid", model="gpt-4o-mini")
 
     def test_create_deepeval_metrics(self, monkeypatch):
         """Test that create_deepeval_metrics creates all metrics."""
@@ -93,7 +93,7 @@ class TestDeepEvalConfig:
                 "legal_rag_bench": {
                     "deepeval": {
                         "enabled": True,
-                        "judge_model": "gpt-4o",
+                        "judge_model": "gpt-4o-mini",
                         "judge_model_provider": "openai",
                         "temperature": 0.0,
                         "max_concurrent": 10,
@@ -105,7 +105,7 @@ class TestDeepEvalConfig:
         deepeval_config = get_deepeval_config(config)
 
         assert deepeval_config["enabled"] is True
-        assert deepeval_config["judge_model"] == "gpt-4o"
+        assert deepeval_config["judge_model"] == "gpt-4o-mini"
         assert deepeval_config["judge_model_provider"] == "openai"
         assert deepeval_config["temperature"] == 0.0
         assert deepeval_config["max_concurrent"] == 10
@@ -140,7 +140,7 @@ class TestDeepEvalConfig:
                 "legal_rag_bench": {
                     "deepeval": {
                         "enabled": True,
-                        "judge_model": "gpt-4o",
+                        "judge_model": "gpt-4o-mini",
                         "judge_model_provider": "openai",
                         "temperature": 0.0,
                         "max_concurrent": 10,
@@ -171,7 +171,7 @@ class TestDeepEvalConfig:
                 "legal_rag_bench": {
                     "deepeval": {
                         "enabled": True,
-                        "judge_model": "gpt-4o",
+                        "judge_model": "gpt-4o-mini",
                         "judge_model_provider": "openai",
                         "temperature": 0.0,
                         # Note: max_concurrent in YAML is lower than env var

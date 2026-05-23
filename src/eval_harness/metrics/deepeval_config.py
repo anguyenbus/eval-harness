@@ -85,7 +85,7 @@ def get_deepeval_llm(
 
     Args:
         provider: LLM provider name ("openai" or "bedrock"). Default: "openai".
-        model: Model name. Default: gpt-4o.
+        model: Model name. Default: gpt-4o-mini.
         temperature: Sampling temperature. Default: 0.0.
 
     Returns:
@@ -123,7 +123,7 @@ def create_deepeval_metrics(
 
     Args:
         llm_provider: LLM provider ("openai" or "bedrock"). Default: "openai".
-        judge_model: Judge model name. Default: gpt-4o.
+        judge_model: Judge model name. Default: gpt-4o-mini.
         temperature: Sampling temperature. Default: 0.0.
         embedder: Optional shared embedder instance (for future use).
 

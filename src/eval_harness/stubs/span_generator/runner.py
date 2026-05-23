@@ -19,11 +19,18 @@ from openinference.semconv.trace import OpenInferenceSpanKindValues
 from eval_harness.stubs.span_generator.config import GeneratorConfig
 from eval_harness.stubs.span_generator.loader import GeneratorQuestion, iter_questions
 from eval_harness.stubs.span_generator.span_schema import (
+    ANSWER_RELEVANCY,
     CASE_ID,
+    CONTEXT_PRECISION,
+    CONTEXT_RECALL,
     EVAL_HARNESS_PREFIX,
+    FAITHFULNESS,
     GENERATOR_VERSION,
     GENERATOR_VERSION_VALUE,
     INPUT_VALUE,
+    LATENCY_GENERATION_MS,
+    LATENCY_RETRIEVAL_MS,
+    LATENCY_TOTAL_MS,
     METADATA,
     METADATA_KEY_EXPECTED_ANSWER,
     METADATA_KEY_EXPECTED_PASSAGE_ID,
@@ -199,7 +206,7 @@ def run_generator(
                     importlib.reload(generator_module)
 
                     # Execute stub pipeline query
-                    _ = query(
+                    rag_output = query(
                         question=question.question,
                         corpus_dir=corpus_dir,
                         top_k=5,
@@ -207,7 +214,61 @@ def run_generator(
                     )
 
                     # Update output with actual answer
-                    # span.set_attribute(OUTPUT_VALUE, answer_text)
+                    answer_text = rag_output.get("answer", {}).get("text", "")
+                    span.set_attribute(OUTPUT_VALUE, answer_text)
+
+                    # Store latency metrics from RAG pipeline
+                    timings = rag_output.get("timings_ms", {})
+                    span.set_attribute(
+                        LATENCY_RETRIEVAL_MS, timings.get("retrieval", 0.0)
+                    )
+                    span.set_attribute(
+                        LATENCY_GENERATION_MS, timings.get("generation", 0.0)
+                    )
+                    span.set_attribute(LATENCY_TOTAL_MS, timings.get("total", 0.0))
+
+                    # Compute and store all RAG quality metrics
+                    # IMPORTANT: Production systems MUST store evaluation metrics as
+                    # span attributes to enable replay evaluation.
+                    # Without stored scores, replay evaluation cannot compare
+                    # new approaches against baseline.
+                    from eval_harness.adapters.deepeval_adapter import (
+                        DeepEvalEvaluator,
+                    )
+
+                    evaluator = DeepEvalEvaluator(
+                        llm_provider="openai",
+                        judge_model="gpt-4o-mini",
+                        temperature=0.0,
+                        max_concurrent=1,
+                    )
+                    metric_result = evaluator.compute_metrics_with_reasoning(
+                        rag_output, question.expected_answer
+                    )
+                    scores = metric_result["scores"]
+                    span.set_attribute(FAITHFULNESS, scores.get("faithfulness", 0.0))
+                    span.set_attribute(
+                        CONTEXT_PRECISION, scores.get("context_precision", 0.0)
+                    )
+                    span.set_attribute(
+                        CONTEXT_RECALL, scores.get("context_recall", 0.0)
+                    )
+                    span.set_attribute(
+                        ANSWER_RELEVANCY, scores.get("answer_relevancy", 0.0)
+                    )
+
+                    # Print metrics summary
+                    import sys
+
+                    print(
+                        f"  [{successes + failures + 1}] "
+                        f"faithfulness={scores.get('faithfulness', 0):.2f} "
+                        f"context_precision={scores.get('context_precision', 0):.2f} "
+                        f"context_recall={scores.get('context_recall', 0):.2f} "
+                        f"answer_relevancy={scores.get('answer_relevancy', 0):.2f} "
+                        f"latency_total={timings.get('total', 0):.0f}ms"
+                    )
+
                     successes += 1
 
             except Exception as e:

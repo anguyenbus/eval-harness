@@ -27,7 +27,7 @@ load_dotenv()
 
 # Constants
 OPENAI_API_KEY_ENV: Final[str] = "OPENAI_API_KEY"
-DEFAULT_OPENAI_MODEL: Final[str] = "gpt-4o"
+DEFAULT_OPENAI_MODEL: Final[str] = "gpt-4o-mini"
 DEFAULT_TEMPERATURE: Final[float] = 0.0
 
 
@@ -60,7 +60,7 @@ def get_openai_client(
     Get OpenAI client for RAGAS evaluation.
 
     Args:
-        model: OpenAI model name. Default: gpt-4o.
+        model: OpenAI model name. Default: gpt-4o-mini.
         temperature: Sampling temperature. Default: 0.0.
 
     Returns:
@@ -90,7 +90,7 @@ def get_llm_backend(
 
     Args:
         provider: LLM provider name ("openai" or "bedrock"). Default: "openai".
-        model: Model name. Default: gpt-4o.
+        model: Model name. Default: gpt-4o-mini.
         temperature: Sampling temperature. Default: 0.0.
 
     Returns:
@@ -218,7 +218,7 @@ def create_ragas_metrics(
 
     Args:
         llm_provider: LLM provider ("openai" or "bedrock"). Default: "openai".
-        judge_model: Judge model name. Default: gpt-4o.
+        judge_model: Judge model name. Default: gpt-4o-mini.
         temperature: Sampling temperature. Default: 0.0.
         embeddings_provider: Embeddings provider ("huggingface" or "openai").
         embeddings_model: Embedding model name.

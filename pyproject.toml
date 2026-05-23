@@ -59,6 +59,7 @@ eval-parsing = "eval_harness.runners.run_parsing_eval:main"
 eval-rag = "eval_harness.runners.run_rag_eval:main"
 generate-spans = "eval_harness.runners.generate_spans:main"
 eval-replay = "eval_harness.runners.run_replay_eval:main"
+chunking-compare = "eval_harness.runners.chunking_comparison:main"
 
 [dependency-groups]
 dev = [
@@ -98,7 +99,7 @@ disallow_untyped_defs = false
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["src"]
+pythonpath = ["src", "scripts"]
 addopts = "-v --tb=short"
 
 [tool.coverage.run]

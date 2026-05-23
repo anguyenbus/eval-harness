@@ -96,7 +96,7 @@ class TestRagasEvaluator:
         monkeypatch.setenv("OPENAI_API_KEY", "test-key")
         monkeypatch.setenv("SSL_CERT_FILE", "")
 
-        evaluator = RagasEvaluator(llm_provider="openai", judge_model="gpt-4o")
+        evaluator = RagasEvaluator(llm_provider="openai", judge_model="gpt-4o-mini")
 
         assert evaluator is not None
         assert evaluator._metrics is not None
@@ -106,7 +106,7 @@ class TestRagasEvaluator:
         monkeypatch.setenv("OPENAI_API_KEY", "test-key")
         monkeypatch.setenv("SSL_CERT_FILE", "")
 
-        evaluator = RagasEvaluator(llm_provider="openai", judge_model="gpt-4o")
+        evaluator = RagasEvaluator(llm_provider="openai", judge_model="gpt-4o-mini")
 
         # Mock the metric evaluation
         with patch.object(
@@ -150,7 +150,7 @@ class TestRagasEvaluator:
         monkeypatch.setenv("OPENAI_API_KEY", "test-key")
         monkeypatch.setenv("SSL_CERT_FILE", "")
 
-        evaluator = RagasEvaluator(llm_provider="openai", judge_model="gpt-4o")
+        evaluator = RagasEvaluator(llm_provider="openai", judge_model="gpt-4o-mini")
 
         # Create mock score result
         mock_score = MagicMock()
@@ -176,7 +176,7 @@ class TestRagasEvaluator:
         monkeypatch.setenv("SSL_CERT_FILE", "")
 
         evaluator = RagasEvaluator(
-            llm_provider="openai", judge_model="gpt-4o", track_costs=True
+            llm_provider="openai", judge_model="gpt-4o-mini", track_costs=True
         )
 
         assert evaluator is not None

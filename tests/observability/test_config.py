@@ -21,7 +21,7 @@ class TestPhoenixConfiguration:
         config_data = {
             "datasets": {"legal_rag_bench": {"path": "data/rag/legal_rag_bench"}},
             "metrics": {"ragas": {"enabled": True}},
-            "models": {"openai": {"model": "gpt-4o"}},
+            "models": {"openai": {"model": "gpt-4o-mini"}},
         }
         config_file.write_text(yaml.dump(config_data))
 
@@ -38,7 +38,7 @@ class TestPhoenixConfiguration:
         config_data = {
             "datasets": {"legal_rag_bench": {"path": "data/rag/legal_rag_bench"}},
             "metrics": {"ragas": {"enabled": True}},
-            "models": {"openai": {"model": "gpt-4o"}},
+            "models": {"openai": {"model": "gpt-4o-mini"}},
             "phoenix": {
                 "enabled": True,
                 "endpoint": "http://localhost:6006",
@@ -60,7 +60,7 @@ class TestPhoenixConfiguration:
         config_data = {
             "datasets": {"legal_rag_bench": {"path": "data/rag/legal_rag_bench"}},
             "metrics": {"ragas": {"enabled": True}},
-            "models": {"openai": {"model": "gpt-4o"}},
+            "models": {"openai": {"model": "gpt-4o-mini"}},
             "phoenix": {"enabled": True, "endpoint": "${PHOENIX_ENDPOINT}"},
         }
         config_file.write_text(yaml.dump(config_data))
@@ -77,7 +77,7 @@ class TestPhoenixConfiguration:
         config_data = {
             "datasets": {"legal_rag_bench": {"path": "data/rag/legal_rag_bench"}},
             "metrics": {"ragas": {"enabled": True}},
-            "models": {"openai": {"model": "gpt-4o"}},
+            "models": {"openai": {"model": "gpt-4o-mini"}},
             "phoenix": {
                 "enabled": True,
                 "endpoint": "${PHOENIX_ENDPOINT:-http://localhost:6006}",
@@ -95,7 +95,7 @@ class TestPhoenixConfiguration:
         config_data = {
             "datasets": {"legal_rag_bench": {"path": "data/rag/legal_rag_bench"}},
             "metrics": {"ragas": {"enabled": True}},
-            "models": {"openai": {"model": "gpt-4o"}},
+            "models": {"openai": {"model": "gpt-4o-mini"}},
         }
         config_file.write_text(yaml.dump(config_data))
 
@@ -130,7 +130,7 @@ class TestPhoenixConfiguration:
         config_data = {
             "datasets": {"legal_rag_bench": {"path": "data/rag/legal_rag_bench"}},
             "metrics": {"ragas": {"enabled": True}},
-            "models": {"openai": {"model": "gpt-4o"}},
+            "models": {"openai": {"model": "gpt-4o-mini"}},
             "phoenix": {
                 "enabled": False,
                 "endpoint": "http://yaml-endpoint:6006",
@@ -153,7 +153,7 @@ class TestPhoenixConfiguration:
         config_data = {
             "datasets": {"legal_rag_bench": {"path": "data/rag/legal_rag_bench"}},
             "metrics": {"ragas": {"enabled": True}},
-            "models": {"openai": {"model": "gpt-4o"}},
+            "models": {"openai": {"model": "gpt-4o-mini"}},
         }
         config_file.write_text(yaml.dump(config_data))
 

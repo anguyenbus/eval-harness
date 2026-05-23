@@ -59,6 +59,33 @@ METADATA_KEY_SYNTHETIC_RUN_ID = "synthetic_run_id"
 METADATA_KEY_STUB_PIPELINE_VERSION = "stub_pipeline_version"
 METADATA_KEY_TENANT_ID_HASHED = "tenant_id_hashed"
 
+# Evaluation metrics stored on spans
+# IMPORTANT: Production systems MUST store evaluation metrics as span attributes
+# to enable replay evaluation against baseline results. Without these stored scores,
+# replay evaluation cannot compare new approaches against production performance.
+#
+# Quality metrics (0-1):
+# - faithfulness: Hallucination detection
+# - context_precision: Signal-to-noise in retrieved contexts
+# - context_recall: Coverage of relevant information
+# - answer_relevancy: Directness of response to question
+#
+# Latency metrics (milliseconds):
+# - latency_retrieval_ms: Time to retrieve chunks from vector store
+# - latency_generation_ms: Time for LLM to generate answer
+# - latency_total_ms: End-to-end query latency
+#
+# NOTE: Using underscore-separated names (not dotted) to avoid Phoenix
+# nesting attributes into a sub-structure. Dotted names like "eval_harness.faithfulness"
+# get grouped under "eval_harness" key in the Phoenix UI.
+FAITHFULNESS = "rag_faithfulness"
+CONTEXT_PRECISION = "rag_context_precision"
+CONTEXT_RECALL = "rag_context_recall"
+ANSWER_RELEVANCY = "rag_answer_relevancy"
+LATENCY_RETRIEVAL_MS = "rag_latency_retrieval_ms"
+LATENCY_GENERATION_MS = "rag_latency_generation_ms"
+LATENCY_TOTAL_MS = "rag_latency_total_ms"
+
 __all__ = [
     # OpenInference re-exports
     "INPUT_VALUE",
@@ -100,4 +127,13 @@ __all__ = [
     "METADATA_KEY_SYNTHETIC_RUN_ID",
     "METADATA_KEY_STUB_PIPELINE_VERSION",
     "METADATA_KEY_TENANT_ID_HASHED",
+    # Evaluation metrics
+    "FAITHFULNESS",
+    "CONTEXT_PRECISION",
+    "CONTEXT_RECALL",
+    "ANSWER_RELEVANCY",
+    # Latency metrics
+    "LATENCY_RETRIEVAL_MS",
+    "LATENCY_GENERATION_MS",
+    "LATENCY_TOTAL_MS",
 ]

@@ -35,7 +35,7 @@ class TestRagasConfig:
         """Test OpenAI client initialization with API key from environment."""
         from langchain_openai import ChatOpenAI
 
-        client = ChatOpenAI(api_key="test-api-key", model="gpt-4o")
+        client = ChatOpenAI(api_key="test-api-key", model="gpt-4o-mini")
         assert client is not None
 
     @patch.dict("os.environ", {"SSL_CERT_FILE": "", "OPENAI_API_KEY": "test-api-key"})
@@ -66,7 +66,7 @@ class TestRagasConfig:
         monkeypatch.setenv("OPENAI_API_KEY", "test-key")
         monkeypatch.setenv("SSL_CERT_FILE", "")
 
-        llm = get_llm_backend(provider="openai", model="gpt-4o")
+        llm = get_llm_backend(provider="openai", model="gpt-4o-mini")
         assert llm is not None
 
     def test_get_llm_backend_with_temperature(self, monkeypatch):
@@ -74,7 +74,7 @@ class TestRagasConfig:
         monkeypatch.setenv("OPENAI_API_KEY", "test-key")
         monkeypatch.setenv("SSL_CERT_FILE", "")
 
-        llm = get_llm_backend(provider="openai", model="gpt-4o", temperature=0.3)
+        llm = get_llm_backend(provider="openai", model="gpt-4o-mini", temperature=0.3)
         assert llm is not None
 
     def test_single_turn_sample_creation(self):

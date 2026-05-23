@@ -19,7 +19,7 @@ class TestAsyncBatchEvaluation:
         monkeypatch.setenv("SSL_CERT_FILE", "")
 
         evaluator = DeepEvalEvaluator(
-            llm_provider="openai", judge_model="gpt-4o", max_concurrent=2
+            llm_provider="openai", judge_model="gpt-4o-mini", max_concurrent=2
         )
 
         # Mock metric.measure() to avoid actual API calls
@@ -61,7 +61,7 @@ class TestAsyncBatchEvaluation:
         monkeypatch.setenv("SSL_CERT_FILE", "")
 
         evaluator = DeepEvalEvaluator(
-            llm_provider="openai", judge_model="gpt-4o", max_concurrent=3
+            llm_provider="openai", judge_model="gpt-4o-mini", max_concurrent=3
         )
 
         # Create distinct queries to track order
@@ -117,7 +117,7 @@ class TestAsyncBatchEvaluation:
         # Use low max_concurrent to test semaphore
         max_concurrent = 2
         evaluator = DeepEvalEvaluator(
-            llm_provider="openai", judge_model="gpt-4o", max_concurrent=max_concurrent
+            llm_provider="openai", judge_model="gpt-4o-mini", max_concurrent=max_concurrent
         )
 
         # Track concurrent executions
@@ -175,7 +175,7 @@ class TestAsyncBatchEvaluation:
         monkeypatch.setenv("SSL_CERT_FILE", "")
 
         evaluator = DeepEvalEvaluator(
-            llm_provider="openai", judge_model="gpt-4o", max_concurrent=3
+            llm_provider="openai", judge_model="gpt-4o-mini", max_concurrent=3
         )
 
         rag_outputs = [

@@ -54,7 +54,7 @@ class LLMGenerator:
     It is not intended for production use.
 
     Supports:
-    - OpenAI: gpt-4o, gpt-4o-mini, gpt-4-turbo, etc.
+    - OpenAI: gpt-4o-mini, gpt-4o-mini, gpt-4-turbo, etc.
     - AWS Bedrock: anthropic.claude-3-5-sonnet-20241022-v2:0,
       amazon.titan-text-express-v1, meta.llama3-1-70b-instruct, etc.
 
@@ -91,7 +91,7 @@ class LLMGenerator:
 
         Args:
             model: Model identifier. If None, uses RAG_GENERATOR_MODEL env var
-                or defaults to gpt-4o. Bedrock models start with "anthropic.",
+                or defaults to gpt-4o-mini. Bedrock models start with "anthropic.",
                 "amazon.", "meta.", etc.
             deterministic_mode: If True, use temperature=0 for reproducible output.
 
@@ -100,7 +100,7 @@ class LLMGenerator:
 
         """
         if model is None:
-            model = os.getenv("RAG_GENERATOR_MODEL", "gpt-4o")
+            model = os.getenv("RAG_GENERATOR_MODEL", "gpt-4o-mini")
         self._model: str = model
         self._provider: str = "bedrock" if _is_bedrock_model(model) else "openai"
         self._deterministic_mode: bool = deterministic_mode

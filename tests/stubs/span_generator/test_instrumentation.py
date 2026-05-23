@@ -234,7 +234,7 @@ class TestGeneratorInstrumentation:
                     import os
 
                     with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
-                        generator = LLMGenerator(model="gpt-4o")
+                        generator = LLMGenerator(model="gpt-4o-mini")
                         result = generator.generate("Test question", [])
 
                         # Verify span was created
@@ -262,7 +262,7 @@ class TestGeneratorInstrumentation:
                 import os
 
                 with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
-                    generator = LLMGenerator(model="gpt-4o", deterministic_mode=True)
+                    generator = LLMGenerator(model="gpt-4o-mini", deterministic_mode=True)
                     result = generator.generate("Test", [])
 
                     # Verify temperature=0 was used
@@ -288,7 +288,7 @@ class TestGeneratorInstrumentation:
                 import os
 
                 with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
-                    generator = LLMGenerator(model="gpt-4o")
+                    generator = LLMGenerator(model="gpt-4o-mini")
                     result = generator.generate("Test", [])
 
                     assert result["text"] == "Answer"

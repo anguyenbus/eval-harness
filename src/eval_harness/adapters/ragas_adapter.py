@@ -17,7 +17,7 @@ from eval_harness.metrics.ragas_config import create_ragas_metrics
 
 # Constants
 DEFAULT_LLM_PROVIDER: Final[str] = "openai"
-DEFAULT_JUDGE_MODEL: Final[str] = "gpt-4o"
+DEFAULT_JUDGE_MODEL: Final[str] = "gpt-4o-mini"
 
 
 @beartype
@@ -87,7 +87,7 @@ class RagasEvaluator:
         _track_costs: Whether to track token usage costs.
 
     Example:
-        >>> evaluator = RagasEvaluator(llm_provider="openai", judge_model="gpt-4o")
+        >>> evaluator = RagasEvaluator(llm_provider="openai", judge_model="gpt-4o-mini")
         >>> scores = evaluator.compute_metrics(rag_output, reference_answer)
         >>> print(scores["faithfulness"])
 
@@ -108,7 +108,7 @@ class RagasEvaluator:
 
         Args:
             llm_provider: LLM provider ("openai" or "bedrock"). Default: "openai".
-            judge_model: Judge model name. Default: gpt-4o.
+            judge_model: Judge model name. Default: gpt-4o-mini.
             temperature: Sampling temperature. Default: 0.0.
             track_costs: Whether to track token usage costs. Default: False.
             embedder: Optional shared embedder instance. If provided, used for
