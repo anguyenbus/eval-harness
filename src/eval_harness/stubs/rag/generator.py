@@ -12,7 +12,7 @@ import json
 import os
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Final
 
 from beartype import beartype
 
@@ -22,6 +22,22 @@ if _env_path.exists():
     from dotenv import load_dotenv
 
     load_dotenv(_env_path)
+
+# Lazy tracer import to avoid circular dependency
+_tracer = None
+
+
+def _get_tracer():
+    """Get global tracer instance for span emission."""
+    global _tracer
+    if _tracer is None:
+        try:
+            from eval_harness.stubs.span_generator.tracer import setup_tracer
+
+            _, _tracer = setup_tracer()
+        except (ImportError, Exception):
+            pass  # Tracing not available
+    return _tracer
 
 
 def _is_bedrock_model(model: str) -> bool:
@@ -46,6 +62,7 @@ class LLMGenerator:
         _model: Model identifier.
         _provider: "openai" or "bedrock".
         _api_key: API key (for OpenAI).
+        _deterministic_mode: Whether to use deterministic generation (temp=0).
 
     Example:
         >>> generator = LLMGenerator()  # Uses RAG_GENERATOR_MODEL env var
@@ -57,9 +74,18 @@ class LLMGenerator:
 
     """
 
-    __slots__ = ("_model", "_provider", "_api_key")
+    __slots__ = ("_model", "_provider", "_api_key", "_deterministic_mode")
 
-    def __init__(self, model: str | None = None) -> None:
+    MODEL_NAME_ATTR: Final[str] = "llm.model_name"
+    INPUT_MESSAGE_ATTR: Final[str] = "llm.input_messages.{i}.message"
+    OUTPUT_MESSAGE_ATTR: Final[str] = "llm.output_messages.{i}.message"
+    TOKEN_COUNT_ATTR: Final[str] = "llm.token_count.total"
+    MESSAGE_ROLE: Final[str] = "role"
+    MESSAGE_CONTENT: Final[str] = "content"
+
+    def __init__(
+        self, model: str | None = None, deterministic_mode: bool = False
+    ) -> None:
         """
         Initialize LLM generator.
 
@@ -67,6 +93,7 @@ class LLMGenerator:
             model: Model identifier. If None, uses RAG_GENERATOR_MODEL env var
                 or defaults to gpt-4o. Bedrock models start with "anthropic.",
                 "amazon.", "meta.", etc.
+            deterministic_mode: If True, use temperature=0 for reproducible output.
 
         Raises:
             ValueError: If required credentials are missing.
@@ -76,6 +103,7 @@ class LLMGenerator:
             model = os.getenv("RAG_GENERATOR_MODEL", "gpt-4o")
         self._model: str = model
         self._provider: str = "bedrock" if _is_bedrock_model(model) else "openai"
+        self._deterministic_mode: bool = deterministic_mode
 
         if self._provider == "openai":
             self._api_key = os.getenv("OPENAI_API_KEY")
@@ -108,10 +136,58 @@ class LLMGenerator:
             ValueError: If API call fails or returns invalid response.
 
         """
-        if self._provider == "openai":
-            return self._generate_openai(question, retrieved_chunks)
-        else:
-            return self._generate_bedrock(question, retrieved_chunks)
+        tracer = _get_tracer()
+
+        if tracer is None:
+            if self._provider == "openai":
+                return self._generate_openai(question, retrieved_chunks)
+            else:
+                return self._generate_bedrock(question, retrieved_chunks)
+
+        from openinference.semconv.trace import OpenInferenceSpanKindValues
+
+        LLM = OpenInferenceSpanKindValues.LLM
+
+        with tracer.start_as_current_span(
+            "bedrock.generate" if self._provider == "bedrock" else "openai.generate",
+            openinference_span_kind=LLM,
+        ) as span:
+            # Set model name
+            span.set_attribute(self.MODEL_NAME_ATTR, self._model)
+
+            # Set input message
+            span.set_attribute(f"{self.INPUT_MESSAGE_ATTR}.{self.MESSAGE_ROLE}", "user")
+            # Build context for prompt
+            context_parts = []
+            for chunk in retrieved_chunks:
+                chunk_id = chunk.get("chunk_id", "unknown")
+                text = chunk.get("text", "")
+                context_parts.append(f"[{chunk_id}]: {text}")
+            context = "\n\n".join(context_parts)
+            user_message = f"Context:\n{context}\n\nQuestion: {question}\n\nAnswer:"
+            span.set_attribute(
+                f"{self.INPUT_MESSAGE_ATTR}.{self.MESSAGE_CONTENT}", user_message
+            )
+
+            # Generate answer
+            if self._provider == "openai":
+                result = self._generate_openai(question, retrieved_chunks)
+            else:
+                result = self._generate_bedrock(question, retrieved_chunks)
+
+            # Set output message attributes
+            span.set_attribute(
+                f"{self.OUTPUT_MESSAGE_ATTR}.{self.MESSAGE_ROLE}", "assistant"
+            )
+            span.set_attribute(
+                f"{self.OUTPUT_MESSAGE_ATTR}.{self.MESSAGE_CONTENT}",
+                result.get("text", ""),
+            )
+
+            # Set token count (0 since we don't track it)
+            span.set_attribute(self.TOKEN_COUNT_ATTR, 0)
+
+            return result
 
     def _generate_openai(
         self, question: str, retrieved_chunks: list[dict[str, Any]]
@@ -150,10 +226,13 @@ Answer:"""
 
             client = OpenAI(api_key=self._api_key)
 
+            # Use temperature=0 if in deterministic mode
+            temperature = 0.0 if self._deterministic_mode else 0.0
+
             response = client.chat.completions.create(
                 model=self._model,
                 max_tokens=1024,
-                temperature=0.0,
+                temperature=temperature,
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_message},
@@ -216,7 +295,7 @@ Answer:"""
                 request_body = {
                     "anthropic_version": "bedrock-2023-05-31",
                     "max_tokens": 1024,
-                    "temperature": 0.0,
+                    "temperature": 0.0 if self._deterministic_mode else 0.0,
                     "system": system_prompt,
                     "messages": [{"role": "user", "content": user_message}],
                 }
@@ -224,10 +303,10 @@ Answer:"""
             else:
                 request_body = {
                     "maxTokenCount": 1024,
-                    "temperature": 0.0,
+                    "temperature": 0.0 if self._deterministic_mode else 0.0,
                     "textGenerationConfig": {
                         "maxTokenCount": 1024,
-                        "temperature": 0.0,
+                        "temperature": 0.0 if self._deterministic_mode else 0.0,
                     },
                     "inputText": f"{system_prompt}\n\n{user_message}",
                 }

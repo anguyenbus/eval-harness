@@ -66,3 +66,13 @@ phoenix:
   # Phoenix endpoint for trace visualization (deferred for MVP)
   endpoint: ${PHOENIX_ENDPOINT:-http://localhost:6006}
   project_name: eval-harness
+
+generator:
+  # Span generator configuration for synthetic replay evaluation
+  phoenix_endpoint: ${PHOENIX_ENDPOINT:-http://localhost:6006}
+  project_name: case-assistant-synthetic
+  default_limit: 100
+  batch_export: true
+  seed: 42
+  stub_model_id: anthropic.claude-3-5-sonnet-20241022-v2:0
+  stub_embedding_model: sentence-transformers/all-MiniLM-L6-v2

@@ -1336,6 +1336,10 @@ phoenix = [
     { name = "arize-phoenix" },
     { name = "openinference-instrumentation-openai" },
 ]
+replay = [
+    { name = "arize-phoenix" },
+    { name = "openinference-semantic-conventions" },
+]
 
 [package.dev-dependencies]
 dev = [
@@ -1353,6 +1357,7 @@ requires-dist = [
     { name = "anthropic", specifier = ">=0.102.0" },
     { name = "apted", specifier = ">=1" },
     { name = "arize-phoenix", marker = "extra == 'phoenix'", specifier = ">=4.0.0" },
+    { name = "arize-phoenix", marker = "extra == 'replay'", specifier = ">=4.0.0" },
     { name = "beartype" },
     { name = "beautifulsoup4", specifier = ">=4" },
     { name = "boto3", marker = "extra == 'bedrock'", specifier = ">=1.0.0" },
@@ -1369,6 +1374,7 @@ requires-dist = [
     { name = "nltk" },
     { name = "openai", specifier = ">=1.0.0" },
     { name = "openinference-instrumentation-openai", marker = "extra == 'phoenix'", specifier = ">=0.1.0" },
+    { name = "openinference-semantic-conventions", marker = "extra == 'replay'", specifier = ">=0.1.0" },
     { name = "pandas" },
     { name = "pycocotools" },
     { name = "pydantic", specifier = ">=2" },
@@ -1382,7 +1388,7 @@ requires-dist = [
     { name = "torch" },
     { name = "torchmetrics", extras = ["detection"], specifier = ">=1" },
 ]
-provides-extras = ["phoenix", "bedrock"]
+provides-extras = ["phoenix", "replay", "bedrock"]
 
 [package.metadata.requires-dev]
 dev = [
