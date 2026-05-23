@@ -4,7 +4,15 @@
 
 **Tone:** Adversarial in standards (we hold ideas to a high bar), gentle in language (we are colleagues working out a hard problem). We are seeking truths, not problems.
 
-**Reading time:** ~20 minutes. The diagrams help.
+**Reading time:** ~25 minutes. The diagrams help.
+
+---
+
+## For non-technical readers — the 100-word version
+
+We have 5 months before real users start using our legal AI product. We need to use that time to reduce risk, not to build infrastructure for its own sake. Shadow evaluation — comparing a new version of the system against the current one — is useful, but it is not the most urgent thing. The most urgent things are: getting real legal documents in front of the system early, starting to collect lawyer-verified examples now, and making sure our data capture works before users arrive. We should build the foundations now and defer the rest until we have real users.
+
+---
 
 ---
 
@@ -602,7 +610,142 @@ The team should be able to answer each of these before committing to any plan. I
 
 ---
 
-## Part 7 — What this document is not
+## Part 7 — The 5-month window: what to do and what to defer
+
+We don't have real users until November. We have 5 months. The question "should we build shadow evaluation now or wait?" is the wrong question — it bundles three different decisions that have very different consequences. This section unpacks them.
+
+### 7.1 What "wait" actually means
+
+"Wait" can mean three different things, and they are not equivalent:
+
+- **Wait to design.** Punt the architecture decisions to November. Cost: we lose 5 months of preparation.
+- **Wait to build.** Design now, write no code. Cost: we lose 4-5 months of work that could be done in parallel with other priorities.
+- **Wait to capture data.** Don't turn on the payload sink until users arrive. Cost: we lose 5 months of *debugging the data pipeline before it matters*, and the first day of real traffic hits an untested sink. Risk: payloads in a 7-year compliance bucket as malformed records we cannot delete.
+
+These have wildly different consequences. Treating them as one decision hides the most important trade-off.
+
+### 7.2 The risk stack we should be working through
+
+Shadow evaluation is one risk on a stack. To decide where it fits, we need to look at the whole stack honestly. Ranked by what matters most for product success:
+
+| Rank | Risk | Mitigation in next 5 months |
+|---|---|---|
+| 1 | We don't know if the system works on real legal documents | Get 5-10 real case files from friendly lawyers; walk through outputs together |
+| 2 | We don't have RFI ground truth | Start collecting now with design partners; even 30 labeled cases by November is a win |
+| 3 | Eval-harness has known correctness bugs (P0 fixes in earlier PBI doc) | Fix silent zeros, model pinning, broken regression and HTML tools |
+| 4 | We don't know what production traffic will look like | Sketch with design partners; accept we won't really know until traffic starts |
+| 5 | We don't have shadow evaluation | The system this document discusses |
+
+Shadow eval is #5. Not because it's not valuable — it is. Because the things above it have higher information value per week of work in the pre-launch window.
+
+This is the priority signal: if forced to choose, we should not spend the 5 months building shadow eval at the cost of risks 1-4.
+
+### 7.3 What 5 months should actually buy us
+
+A staged plan that does not defer everything to November but also does not over-invest in infrastructure we can't test yet.
+
+```svg
+<svg viewBox="0 0 720 380" xmlns="http://www.w3.org/2000/svg" role="img" font-family="system-ui, -apple-system, sans-serif">
+  <title>5-month sequence</title>
+  <defs>
+    <marker id="ar6" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M2 1L8 5L2 9" fill="none" stroke="#555" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></marker>
+  </defs>
+
+  <line x1="40" y1="40" x2="680" y2="40" stroke="#9ca3af" stroke-width="1"/>
+  <text x="40" y="30" font-size="11" fill="#374151">Now</text>
+  <text x="680" y="30" font-size="11" text-anchor="end" fill="#374151">November (users arrive)</text>
+
+  <rect x="40" y="60" width="200" height="64" rx="8" fill="#fee2e2" stroke="#dc2626"/>
+  <text x="140" y="84" font-size="12" font-weight="600" text-anchor="middle" fill="#7f1d1d">Months 1–2</text>
+  <text x="140" y="102" font-size="10" text-anchor="middle" fill="#7f1d1d">P0 fixes in eval-harness</text>
+  <text x="140" y="116" font-size="10" text-anchor="middle" fill="#7f1d1d">Resolve stubs ambiguity</text>
+
+  <rect x="260" y="60" width="200" height="64" rx="8" fill="#fee2e2" stroke="#dc2626"/>
+  <text x="360" y="84" font-size="12" font-weight="600" text-anchor="middle" fill="#7f1d1d">Months 1–3</text>
+  <text x="360" y="102" font-size="10" text-anchor="middle" fill="#7f1d1d">5–10 real case files reviewed</text>
+  <text x="360" y="116" font-size="10" text-anchor="middle" fill="#7f1d1d">RFI labeling starts</text>
+
+  <rect x="480" y="60" width="200" height="64" rx="8" fill="#fef3c7" stroke="#d97706"/>
+  <text x="580" y="84" font-size="12" font-weight="600" text-anchor="middle" fill="#78350f">Months 2–4</text>
+  <text x="580" y="102" font-size="10" text-anchor="middle" fill="#78350f">Payload sink built and live</text>
+  <text x="580" y="116" font-size="10" text-anchor="middle" fill="#78350f">7-year storage configured</text>
+
+  <rect x="40" y="148" width="200" height="64" rx="8" fill="#ccfbf1" stroke="#0d9488"/>
+  <text x="140" y="172" font-size="12" font-weight="600" text-anchor="middle" fill="#134e4a">Months 3–5</text>
+  <text x="140" y="190" font-size="10" text-anchor="middle" fill="#134e4a">Replay harness</text>
+  <text x="140" y="204" font-size="10" text-anchor="middle" fill="#134e4a">Comparison layer, CI</text>
+
+  <rect x="260" y="148" width="200" height="64" rx="8" fill="#ccfbf1" stroke="#0d9488"/>
+  <text x="360" y="172" font-size="12" font-weight="600" text-anchor="middle" fill="#134e4a">Months 4–5</text>
+  <text x="360" y="190" font-size="10" text-anchor="middle" fill="#134e4a">Test pipeline with internal</text>
+  <text x="360" y="204" font-size="10" text-anchor="middle" fill="#134e4a">and design-partner traffic</text>
+
+  <rect x="480" y="148" width="200" height="64" rx="8" fill="#e5e7eb" stroke="#6b7280"/>
+  <text x="580" y="172" font-size="12" font-weight="600" text-anchor="middle" fill="#374151">Post-November</text>
+  <text x="580" y="190" font-size="10" text-anchor="middle" fill="#374151">Live mirror via Istio</text>
+  <text x="580" y="204" font-size="10" text-anchor="middle" fill="#374151">Once we see real traffic</text>
+
+  <line x1="240" y1="92" x2="256" y2="92" stroke="#555" marker-end="url(#ar6)"/>
+  <line x1="460" y1="92" x2="476" y2="92" stroke="#555" marker-end="url(#ar6)"/>
+  <line x1="580" y1="124" x2="140" y2="144" stroke="#555" stroke-dasharray="3 3" marker-end="url(#ar6)"/>
+  <line x1="240" y1="180" x2="256" y2="180" stroke="#555" marker-end="url(#ar6)"/>
+  <line x1="460" y1="180" x2="476" y2="180" stroke="#555" stroke-dasharray="3 3" marker-end="url(#ar6)"/>
+
+  <rect x="40" y="240" width="640" height="60" rx="8" fill="#f3e8ff" stroke="#9333ea"/>
+  <text x="56" y="262" font-size="12" font-weight="600" fill="#581c87">Critical: capture is on before users arrive</text>
+  <text x="56" y="282" font-size="11" fill="#581c87">The sink must run against internal and design-partner traffic from Month 4 onward,</text>
+  <text x="56" y="296" font-size="11" fill="#581c87">so we debug it before real lawyer traffic hits a 7-year compliance bucket.</text>
+
+  <rect x="40" y="320" width="640" height="40" rx="6" fill="#f9fafb" stroke="#6b7280"/>
+  <text x="360" y="344" font-size="11" font-style="italic" text-anchor="middle" fill="#374151">Red = highest leverage. Yellow = foundation. Teal = parallel build. Gray = deferred.</text>
+</svg>
+```
+
+The colors above carry meaning:
+
+- **Red boxes (highest leverage):** P0 fixes, real case files, RFI labeling. These retire product-quality risks. Highest priority.
+- **Yellow box (foundation):** payload sink and storage. Must be working before users arrive. Cannot be deferred to November.
+- **Teal boxes (parallel build):** replay harness, comparison, CI. Real value only once data exists, but worth building in parallel so we are ready when November arrives.
+- **Gray box (deferred):** live mirror. Has no value before there is real production traffic to mirror.
+
+### 7.4 The build-now, run-against-pre-production-traffic principle
+
+This is the principle that determines what to do in the next 5 months: **build the data capture infrastructure now, and run it against whatever traffic exists today — internal QA, design partners, your own legal counsel testing the system, synthetic test runs.**
+
+Reasons:
+
+1. **A buggy sink in a 7-year compliance bucket is unfixable.** Object Lock in Compliance mode means we cannot delete malformed records once written. We need to debug the sink against non-real traffic before it ever sees real traffic.
+2. **The first day of production should be boring.** When real users arrive, the sink should already have months of operational history. If something is going to break, we want it to break in October, not November.
+3. **Validation against pre-production traffic catches schema and infrastructure bugs.** Real lawyer queries will hit edge cases the schema didn't anticipate. Better to find these when no real cases are at stake.
+
+This is the most important practical point in this document. **Capture before launch, not after launch.**
+
+### 7.5 What we should not build before November
+
+Equally important to decide explicitly what we don't build:
+
+- **Live mirror via Istio.** No real traffic to mirror. Build it in December at the earliest, once we know whether replay is enough.
+- **Distribution shift monitoring.** Requires a baseline distribution. We don't have one yet.
+- **Full statistical comparison framework.** Wilcoxon and effect sizes are easy to add once data exists. Variance calibration needs real judge runs against real-ish payloads. Defer the calibration work to November.
+- **Optimized PR gates with composite rules.** Without months of data to calibrate against, any threshold we pick is a guess. Land basic CI integration; tune later.
+
+The temptation in pre-launch is to build everything. Resist it. Build the things that need to be working *before* users arrive, defer the things that only have value *after* users arrive.
+
+### 7.6 The PM framing
+
+To a non-engineering stakeholder, the framing is:
+
+- We have 5 months and no users.
+- We have several risks to retire. Shadow evaluation is one of them, but not the most urgent.
+- The 5 months should be used to (a) make sure the system works on real documents, (b) start building lawyer-verified examples, (c) fix known bugs in our measurement tools, and (d) make sure our data capture infrastructure is debugged and running before any real user touches the system.
+- Most of the *evaluation* part of shadow eval — the comparison, the statistics, the CI gates — can be built quickly once data exists. It does not need to be done before November.
+- The *capture* part of shadow eval must be done before November, because we cannot retroactively recover traffic we did not save.
+
+If asked "is it sensible to wait?", the honest answer is: **not on capture, yes on most of the rest**. We should build the foundations now and operate them on pre-production traffic so they are debugged before real users arrive. We should defer the comparison and live-mirror work until data exists.
+
+---
+
+## Part 8 — What this document is not
 
 To set expectations honestly:
 
@@ -613,17 +756,17 @@ To set expectations honestly:
 
 ---
 
-## Part 8 — Suggested meeting structure
+## Part 9 — Suggested meeting structure
 
 If the team is going to discuss this, the order matters. Suggested 90 minutes:
 
 - **10 min** — frame the question (Part 1, Part 2). Confirm everyone agrees on what "shadow evaluation" means.
-- **15 min** — Decision 1 (are we doing this at all?). If the answer is no, the meeting ends here and we go work on RFI labels instead.
-- **15 min** — Decision 3 (where does the sink live?). This depends on resolving the stubs ambiguity (3.3).
+- **15 min** — the 5-month window (Part 7). Confirm or challenge the risk stack and the build-now-run-against-pre-production principle. **This should come early** because it changes how the rest of the decisions get prioritized.
+- **15 min** — Decision 1 (are we doing this at all?). Given Part 7's framing, this is really "are we committing to the capture-now, evaluate-later sequence?"
+- **15 min** — Decision 3 (where does the sink live?). Depends on resolving the stubs ambiguity (3.3).
 - **15 min** — Decision 4 (7-year retention design). Requires compliance/security to be in the room or to follow up.
-- **10 min** — Decision 2 (replay-first or mirror-first or both).
-- **10 min** — Decisions 5 and 6 (statistics, CI). Can be punted to a follow-up.
-- **15 min** — pick three hostile questions from Part 6 that someone owns answering before the next meeting.
+- **10 min** — Decision 2 (replay-first or mirror-first or both). Given Part 7, this is mostly resolved: replay first, mirror deferred to post-November.
+- **10 min** — pick three hostile questions from Part 6 that someone owns answering before the next meeting.
 
 We don't expect to finish the design in one meeting. We expect to finish the *decisions* that block the design.
 
@@ -639,6 +782,7 @@ To match the standard we hold our own designs to. These are real limitations of 
 - **The architectural ambiguity in 3.3** is unresolved and several other parts of this document assume away. If the production code turns out to be in `stubs/`, the design changes.
 - **The "diagrams show what we'd build"** in Part 5 quietly assumes the team will end up at the same design the previous document landed on. The decisions in Part 4 could legitimately produce a different shape. The diagrams are illustrative, not prescriptive.
 - **The hostile questions in Part 6** are skewed toward questions I think we should ask. A team member may have hostile questions I haven't thought of. The list is a starting point.
+- **The 5-month sequence in Part 7** assumes November is a hard launch date and that internal/design-partner traffic exists or can be generated before then. If neither is true, the "capture before launch" argument weakens because there is nothing to capture. The risk stack also assumes RFI labeling is feasible with friendly lawyers in the next 3 months — if our design partners cannot commit to that work, ranks 1-2 in the stack change.
 
 The document gets stronger if these are challenged, not weaker.
 
