@@ -9,9 +9,9 @@ and effect size calculations.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Final
 
 from beartype import beartype
+from beartype.typing import Final
 
 # Constants
 DEFAULT_ALPHA: Final[float] = 0.05

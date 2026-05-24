@@ -7,9 +7,8 @@ for querying and extracting synthetic spans for replay evaluation.
 
 from __future__ import annotations
 
-from typing import Any, Final
-
 from beartype import beartype
+from beartype.typing import Any, Final
 
 # Constants
 DEFAULT_ENDPOINT: Final[str] = "http://localhost:6006"

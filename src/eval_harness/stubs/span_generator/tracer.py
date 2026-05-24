@@ -9,9 +9,9 @@ correct dependency direction.
 from __future__ import annotations
 
 import re
-from typing import Any, Final
 
 from beartype import beartype
+from beartype.typing import Any, Final
 
 # Constants
 DEFAULT_ENDPOINT: Final[str] = "http://localhost:6006"
@@ -23,26 +23,25 @@ DEFAULT_AUTO_INSTRUMENT: Final[bool] = False
 @beartype
 def _get_otlp_endpoint(ui_endpoint: str) -> str:
     """
-    Convert UI endpoint to gRPC endpoint.
+    Convert UI endpoint to OTLP HTTP endpoint.
 
-    Phoenix accepts OTLP via:
-    - HTTP at http://localhost:6006/v1/traces (UI port + path)
-    - gRPC at http://localhost:4317 (separate gRPC listener)
+    Phoenix accepts OTLP via HTTP at:
+    - http://localhost:6006/v1/traces (UI port + /v1/traces path)
 
-    We use gRPC (4317) as it's Phoenix's default and more efficient.
+    Phoenix 4.x uses HTTP by default. gRPC (4317) requires additional setup.
 
     Args:
         ui_endpoint: Phoenix UI endpoint (e.g., http://localhost:6006).
 
     Returns:
-        gRPC endpoint URL (e.g., http://localhost:4317).
+        OTLP HTTP endpoint URL (e.g., http://localhost:6006/v1/traces).
 
     """
-    # Replace UI port (6006) with gRPC port (4317)
+    # Use HTTP endpoint on UI port
     match = re.match(r"(https?://[^:]+):\d+", ui_endpoint)
     if match:
-        return f"{match.group(1)}:4317"
-    return "http://localhost:4317"
+        return f"{match.group(1)}:6006/v1/traces"
+    return "http://localhost:6006/v1/traces"
 
 
 @beartype
@@ -85,14 +84,14 @@ def setup_tracer(
         ) from e
 
     try:
-        # Convert UI endpoint to gRPC endpoint
+        # Convert UI endpoint to OTLP HTTP endpoint
         otlp_endpoint = _get_otlp_endpoint(phoenix_endpoint)
 
-        # Register with Phoenix
+        # Register with Phoenix using HTTP/protobuf protocol
         tracer_provider = register(
             endpoint=otlp_endpoint,
             project_name=project_name,
-            protocol="grpc",
+            protocol="http/protobuf",  # HTTP with protobuf payload
             batch=batch,
             set_global_tracer_provider=False,  # Don't set global default
         )

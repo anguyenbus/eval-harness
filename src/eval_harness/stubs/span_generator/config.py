@@ -10,10 +10,9 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Final
 
 from beartype import beartype
-from beartype.typing import Optional
+from beartype.typing import Final, Optional
 
 from eval_harness.config import load_config
 

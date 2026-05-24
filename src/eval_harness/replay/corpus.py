@@ -7,9 +7,8 @@ Phoenix-compatible EvaluationDataset format for replay evaluation.
 
 from __future__ import annotations
 
-from typing import Any
-
 from beartype import beartype
+from beartype.typing import Any
 
 
 @beartype

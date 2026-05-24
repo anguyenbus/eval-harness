@@ -14,10 +14,11 @@ import csv
 import json
 import os
 import sys
+import threading
 from pathlib import Path
-from typing import Any
 
 import click
+from beartype.typing import Any
 from dotenv import load_dotenv
 
 from eval_harness.adapters.rag_adapter import RagAdapter
@@ -30,13 +31,17 @@ os.environ["DEEPEVAL_TELEMETRY_OPT_OUT"] = "YES"
 load_dotenv()
 
 # Global tracer (initialized once, reused for all questions)
+# Thread-safe initialization using lock
 _tracer_provider: Any = None
 _tracer: Any = None
+_tracer_lock = threading.Lock()
 
 
 def _get_tracer(phoenix_endpoint: str, project_name: str) -> Any:
     """
     Get or initialize global tracer for replay spans.
+
+    Thread-safe using double-check locking pattern.
 
     Args:
         phoenix_endpoint: Phoenix server endpoint.
@@ -48,22 +53,29 @@ def _get_tracer(phoenix_endpoint: str, project_name: str) -> Any:
     """
     global _tracer_provider, _tracer
 
+    # Fast path - already initialized
     if _tracer is not None:
         return _tracer
 
-    try:
+    # Slow path - acquire lock for initialization
+    with _tracer_lock:
+        # Double-check after acquiring lock
+        if _tracer is not None:
+            return _tracer
 
-        from eval_harness.stubs.span_generator.tracer import setup_tracer
+        try:
 
-        _tracer_provider, _tracer = setup_tracer(
-            phoenix_endpoint=phoenix_endpoint,
-            project_name=project_name,
-            batch=True,
-            auto_instrument=False,
-        )
-        return _tracer
-    except Exception:
-        return None
+            from eval_harness.stubs.span_generator.tracer import setup_tracer
+
+            _tracer_provider, _tracer = setup_tracer(
+                phoenix_endpoint=phoenix_endpoint,
+                project_name=project_name,
+                batch=True,
+                auto_instrument=False,
+            )
+            return _tracer
+        except Exception:
+            return None
 
 
 def _extract_question_from_span(span: dict[str, Any]) -> str | None:
@@ -221,9 +233,9 @@ def _run_adapter_on_questions(
     expected_answers: list[str] | None = None,
     tracer: Any = None,
     candidate_name: str = "candidate",
-) -> list[dict[str, float]]:
+) -> tuple[list[dict[str, float]], int]:
     """
-    Run RAG adapter on questions and return all scores.
+    Run RAG adapter on questions and return scores with error count.
 
     Args:
         questions: List of question strings.
@@ -234,7 +246,8 @@ def _run_adapter_on_questions(
         candidate_name: Name for candidate (used in span naming).
 
     Returns:
-        List of dicts with metric scores per question.
+        Tuple of (list of score dicts, error_count). Errors are NOT included
+        in scores - only successful results are returned.
 
     """
     from openinference.semconv.trace import (
@@ -245,16 +258,18 @@ def _run_adapter_on_questions(
     from eval_harness.adapters.deepeval_adapter import DeepEvalEvaluator
 
     # Initialize evaluator
-    # NOTE: Use gpt-4o-mini to match span generation baseline.
-    # Using a different judge model would introduce bias in comparison.
+    # NOTE: Use gpt-4o to match span generation baseline.
+    # Using gpt-4o instead of gpt-4o-mini for more reliable parsing.
     evaluator = DeepEvalEvaluator(
         llm_provider="openai",
-        judge_model="gpt-4o-mini",
+        judge_model="gpt-4o",
         temperature=0.0,
         max_concurrent=4,
     )
 
     all_scores = []
+    error_count = 0
+
     for i, question in enumerate(questions):
         span_context = None
         try:
@@ -271,16 +286,24 @@ def _run_adapter_on_questions(
             # Query RAG system
             output = adapter.query(question, corpus_dir)
 
-            # Compute all metrics
+            # Get expected answer (handle empty for context_recall)
             expected = (
                 expected_answers[i]
                 if expected_answers and i < len(expected_answers)
-                else ""
+                else None
             )
+
+            # Compute metrics - pass empty string if no expected
+            # context_recall will be removed if expected is None
             metric_result = evaluator.compute_metrics_with_reasoning(
-                output, expected
+                output, expected or ""
             )
             scores = metric_result["scores"]
+
+            # Remove context_recall if no expected answer (metric invalid)
+            if not expected:
+                scores.pop("context_recall", None)
+
             # Add latency
             timings = output.get("timings_ms", {})
             scores["rag_latency_total_ms"] = timings.get("total", 0.0)
@@ -298,9 +321,11 @@ def _run_adapter_on_questions(
                 span.set_attribute(
                     "rag_context_precision", scores.get("context_precision", 0.0)
                 )
-                span.set_attribute(
-                    "rag_context_recall", scores.get("context_recall", 0.0)
-                )
+                # Only store context_recall if we had expected answer
+                if "context_recall" in scores:
+                    span.set_attribute(
+                        "rag_context_recall", scores.get("context_recall", 0.0)
+                    )
                 span.set_attribute(
                     "rag_answer_relevancy", scores.get("answer_relevancy", 0.0)
                 )
@@ -316,19 +341,23 @@ def _run_adapter_on_questions(
                     scores.get("rag_latency_generation_ms", 0.0),
                 )
 
-            all_scores.append(scores)
-
-            if span_context is not None:
-                span_context.__exit__(None, None, None)
         except Exception as e:
+            # Error path - log and count, don't add zero scores
+            error_count += 1
+            click.echo(
+                f"WARNING: Error processing question {i+1}/{len(questions)}: {e}",
+                err=True,
+            )
+            # Ensure span is closed on error
             if span_context is not None:
                 span_context.__exit__(None, None, None)
-            click.echo(f"WARNING: Error processing question: {e}", err=True)
-            all_scores.append({"rag_faithfulness": 0.0, "rag_context_precision": 0.0,
-                              "rag_context_recall": 0.0, "rag_answer_relevancy": 0.0,
-                              "rag_latency_total_ms": 0.0})
+        else:
+            # Golden path - success
+            all_scores.append(scores)
+            if span_context is not None:
+                span_context.__exit__(None, None, None)
 
-    return all_scores
+    return all_scores, error_count
 
 
 def _get_rag_adapter(
@@ -340,9 +369,9 @@ def _get_rag_adapter(
     Get RAG adapter by name.
 
     Parses candidate name to extract configuration. Supported formats:
-    - stub-local: Default stub with config chunking
+    - stub-local: Default stub with default chunking
     - stub-chunks-{size}-overlap-{overlap}: Configurable chunking
-    - Future: stub-reranker-{model}, stub-llm-{model}, etc.
+      (e.g., stub-chunks-512-overlap-150)
 
     Args:
         rag_name: Name of RAG system (encodes configuration).
@@ -352,29 +381,55 @@ def _get_rag_adapter(
     Returns:
         RagAdapter instance.
 
+    Raises:
+        ValueError: If rag_name format is invalid.
+
     """
+    import re
+
     from eval_harness.stubs.rag.chromadb_query import query as chromadb_query
+
+    # Validate rag_name format
+    if not rag_name.startswith("stub-"):
+        raise ValueError(
+            f"Invalid adapter name '{rag_name}': must start with 'stub-'"
+        )
 
     # Parse candidate name for chunking config
     chunk_size = None
     chunk_overlap = None
 
-    if "chunks-" in rag_name and "-overlap-" in rag_name:
-        # Parse: stub-chunks-512-overlap-150
-        parts = rag_name.split("-")
+    # Use regex for robust parsing: stub-chunks-{N}-overlap-{M}
+    chunk_pattern = r"stub-chunks-(\d+)-overlap-(\d+)"
+    match = re.match(chunk_pattern, rag_name)
+    if match:
         try:
-            chunks_idx = parts.index("chunks")
-            overlap_idx = parts.index("overlap")
-            chunk_size = int(parts[chunks_idx + 1])
-            chunk_overlap = int(parts[overlap_idx + 1])
+            chunk_size = int(match.group(1))
+            chunk_overlap = int(match.group(2))
+            # Validate reasonable ranges
+            if chunk_size <= 0 or chunk_size > 8192:
+                raise ValueError(f"chunk_size must be 1-8192, got {chunk_size}")
+            if chunk_overlap < 0 or chunk_overlap >= chunk_size:
+                raise ValueError(
+                    f"chunk_overlap must be 0 <= overlap < chunk_size, "
+                    f"got {chunk_overlap}"
+                )
             click.echo(
                 f"  Configured: chunk_size={chunk_size}, overlap={chunk_overlap}"
             )
-        except (ValueError, IndexError):
+        except ValueError as e:
             click.echo(
-                f"  WARNING: Invalid chunking format in '{rag_name}', using defaults",
+                f"  WARNING: Invalid chunking values in '{rag_name}': {e}. "
+                f"Using defaults.",
                 err=True,
             )
+            chunk_size = None
+            chunk_overlap = None
+    elif rag_name != "stub-local":
+        click.echo(
+            f"  WARNING: Unknown format '{rag_name}', using default chunking",
+            err=True,
+        )
 
     def chromadb_wrapper(
         question: str, corpus_dir: Path, embedder: Any = None
@@ -525,7 +580,7 @@ def main(
         # Get candidate adapter
         click.echo(f"Running candidate: {candidate}")
         candidate_adapter = _get_rag_adapter(candidate, top_k, embedder)
-        candidate_scores = _run_adapter_on_questions(
+        candidate_scores, candidate_errors = _run_adapter_on_questions(
             questions,
             candidate_adapter,
             corpus_dir,
@@ -639,7 +694,7 @@ def main(
             else:
                 click.echo(f"Running baseline adapter: {baseline}")
                 baseline_adapter = _get_rag_adapter(baseline, top_k, embedder)
-                baseline_results = _run_adapter_on_questions(
+                baseline_results, baseline_errors = _run_adapter_on_questions(
                     questions,
                     baseline_adapter,
                     corpus_dir,
@@ -665,6 +720,17 @@ def main(
                 s.get("faithfulness", 0.0) for s in candidate_scores
             ]
 
+        # Report error summary
+        total_errors = candidate_errors
+        if baseline != candidate and not production_baseline:
+            total_errors += baseline_errors
+        if total_errors > 0:
+            click.echo(
+                f"\nWARNING: {total_errors} error(s) occurred during evaluation. "
+                f"Results based on {len(candidate_scores)} successful questions.",
+                err=True,
+            )
+
         # Perform paired comparison on all metrics
         # Note: candidate_scores and baseline_all_scores have different key formats
         # candidate_scores: faithfulness, context_precision, rag_latency_total_ms
@@ -687,11 +753,13 @@ def main(
         baseline_answer_relevancy = [
             s.get("answer_relevancy", 0.0) for s in baseline_all_scores
         ]
+        # Latency: negate so "higher is better" for paired comparison
+        # Lower latency → higher negated score → wins comparison
         candidate_latency = [
-            s.get("rag_latency_total_ms", 0.0) for s in candidate_scores
+            -s.get("rag_latency_total_ms", 0.0) for s in candidate_scores
         ]
         baseline_latency = [
-            s.get("latency_total_ms", 0.0) for s in baseline_all_scores
+            -s.get("latency_total_ms", 0.0) for s in baseline_all_scores
         ]
 
         metrics_to_compare = [
@@ -733,9 +801,20 @@ def main(
         click.echo(header)
         click.echo("-" * 70)
 
+        # Store metric averages for display and export
+        # (need originals, not negated latency values)
+        metric_averages = {}
         for metric_name, cand_vals, base_vals in metrics_to_compare:
             cand_avg = sum(cand_vals) / len(cand_vals) if cand_vals else 0.0
             base_avg = sum(base_vals) / len(base_vals) if base_vals else 0.0
+            # Negate latency back to original value
+            if metric_name == "latency_total_ms":
+                cand_avg = -cand_avg
+                base_avg = -base_avg
+            metric_averages[metric_name] = (cand_avg, base_avg)
+
+        for metric_name, _cand_vals, _base_vals in metrics_to_compare:
+            cand_avg, base_avg = metric_averages[metric_name]
             result = results.get(metric_name)
 
             if result:
@@ -811,6 +890,9 @@ def main(
                 "baseline": baseline,
                 "project": project,
                 "num_questions": len(questions),
+                "num_successful": len(candidate_scores),
+                "num_errors": total_errors,
+                "error_rate": total_errors / len(questions) if questions else 0.0,
                 "num_spans": len(root_spans),
                 "averages": {
                     "candidate": {
@@ -867,8 +949,9 @@ def main(
                 # Rows
                 for metric_name, result in results.items():
                     if result:
-                        cand_avg = sum(cand_vals) / len(cand_vals) if cand_vals else 0.0
-                        base_avg = sum(base_vals) / len(base_vals) if base_vals else 0.0
+                        cand_avg, base_avg = metric_averages.get(
+                            metric_name, (0.0, 0.0)
+                        )
                         writer.writerow([
                             metric_name,
                             f"{cand_avg:.4f}",

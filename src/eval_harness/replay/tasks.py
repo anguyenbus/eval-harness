@@ -8,9 +8,9 @@ in Phoenix replay evaluation.
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any
 
 from beartype import beartype
+from beartype.typing import Any
 
 
 @beartype

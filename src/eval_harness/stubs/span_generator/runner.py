@@ -235,7 +235,7 @@ def run_generator(
 
                     evaluator = DeepEvalEvaluator(
                         llm_provider="openai",
-                        judge_model="gpt-4o-mini",
+                        judge_model="gpt-4o",  # More reliable parsing than gpt-4o-mini
                         temperature=0.0,
                         max_concurrent=1,
                     )
