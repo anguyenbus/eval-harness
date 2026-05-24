@@ -1338,7 +1338,10 @@ phoenix = [
 ]
 replay = [
     { name = "arize-phoenix" },
+    { name = "click" },
+    { name = "fastapi" },
     { name = "openinference-semantic-conventions" },
+    { name = "uvicorn" },
 ]
 
 [package.dev-dependencies]
@@ -1362,10 +1365,12 @@ requires-dist = [
     { name = "beautifulsoup4", specifier = ">=4" },
     { name = "boto3", marker = "extra == 'bedrock'", specifier = ">=1.0.0" },
     { name = "chromadb" },
+    { name = "click", marker = "extra == 'replay'", specifier = ">=8.0.0" },
     { name = "datasets" },
     { name = "deepeval", specifier = ">=2.0.0" },
     { name = "docling", specifier = ">=2" },
     { name = "evaluate" },
+    { name = "fastapi", marker = "extra == 'replay'", specifier = ">=0.100.0" },
     { name = "huggingface-hub" },
     { name = "jinja2" },
     { name = "jsonschema", specifier = ">=4" },
@@ -1387,6 +1392,7 @@ requires-dist = [
     { name = "sentence-transformers", specifier = ">=5.5.0" },
     { name = "torch" },
     { name = "torchmetrics", extras = ["detection"], specifier = ">=1" },
+    { name = "uvicorn", marker = "extra == 'replay'", specifier = ">=0.23.0" },
 ]
 provides-extras = ["phoenix", "replay", "bedrock"]
 

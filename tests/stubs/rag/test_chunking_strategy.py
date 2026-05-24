@@ -4,11 +4,10 @@ Tests for configurable chunking strategy.
 Focused tests for Task Group 1: Configurable Chunking Strategy.
 """
 
-from pathlib import Path
 
 import pytest
 
-from eval_harness.stubs.rag.chunking import ChunkingStrategy, ConfigurableChunker
+from eval_harness.stubs.rag.chunking import ConfigurableChunker
 
 
 class TestConfigurableChunker:

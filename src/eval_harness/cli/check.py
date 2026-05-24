@@ -9,8 +9,6 @@ from __future__ import annotations
 
 import os
 import urllib.request
-from beartype import beartype
-from beartype.typing import Any
 
 import click
 
@@ -48,6 +46,7 @@ def phoenix(endpoint: str, timeout: int) -> None:
     Exit codes:
         0: Phoenix is reachable
         1: Phoenix is not reachable or connection error
+
     """
     click.echo(f"Checking Phoenix at: {endpoint}")
 
@@ -116,7 +115,7 @@ def phoenix(endpoint: str, timeout: int) -> None:
         elif "timeout" in reason.lower():
             click.echo(
                 click.style(
-                    f"✗ Connection timeout - Phoenix may be behind a firewall",
+                    "✗ Connection timeout - Phoenix may be behind a firewall",
                     fg="red",
                 ),
                 err=True,

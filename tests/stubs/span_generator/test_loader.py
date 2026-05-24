@@ -2,16 +2,14 @@
 Tests for span generator loader and runner components.
 """
 
-from unittest.mock import MagicMock, Mock, patch
-
-import pytest
+from unittest.mock import patch
 
 from eval_harness.stubs.span_generator.loader import (
-    sample_questions,
     GeneratorQuestion,
     _generate_case_id,
     _generate_tenant_id_hashed,
     iter_questions,
+    sample_questions,
 )
 
 
@@ -203,7 +201,6 @@ class TestSampleQuestions:
     def test_default_values_match_constants(self) -> None:
         """Test that default values match spec constants."""
         from eval_harness.stubs.span_generator.loader import (
-    sample_questions,
             DEFAULT_DEMO_QUESTIONS,
             DEFAULT_DEMO_SEED,
         )

@@ -105,8 +105,8 @@ class DualPipelineRunner:
 
         """
         # Import here to avoid circular dependencies
-        from eval_harness.adapters.embeddings import get_embedder
         from eval_harness.adapters.deepeval_adapter import DeepEvalEvaluator
+        from eval_harness.adapters.embeddings import get_embedder
 
         # Initialize evaluator
         if evaluator is None:
@@ -126,7 +126,6 @@ class DualPipelineRunner:
         # Prepare questions for each pipeline
         if naive_mode:
             # Naive mode: use different subsets
-            import random
 
             mid = len(questions) // 2
             baseline_questions = questions[:mid]
@@ -239,10 +238,9 @@ def _default_adapter_factory(
     def custom_query(
         question: str, corpus_dir: Path, embedder: Any = embedder
     ) -> dict[str, Any]:
-        from eval_harness.stubs.rag.chromadb_query import query as chromadb_query
-
         # Patch the FixedChunker import in chromadb_query module
         import eval_harness.stubs.rag.chunker as chunker_module
+        from eval_harness.stubs.rag.chromadb_query import query as chromadb_query
         original_fixed_chunker = chunker_module.FixedChunker
 
         # Temporarily replace with our configured chunker

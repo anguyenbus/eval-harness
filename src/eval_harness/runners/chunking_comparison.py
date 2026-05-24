@@ -47,6 +47,7 @@ def _parse_approach_name(name: str) -> tuple[int, int]:
 
     Raises:
         click.ClickException: If name format is invalid.
+
     """
     parts = name.split("-")
     try:
@@ -114,12 +115,13 @@ def main(
         demo-showcase --baseline stub-chunks-512-overlap-0 --candidate stub-chunks-512-overlap-150
 
     Approach name format: stub-chunks-{size}-overlap-{overlap}
+
     """
     # Parse approach names to extract chunk size and overlap
     baseline_chunk_size, baseline_overlap = _parse_approach_name(baseline)
     candidate_chunk_size, candidate_overlap = _parse_approach_name(candidate)
 
-    console.print(f"[bold blue]RAG Chunking Comparison Demo[/bold blue]")
+    console.print("[bold blue]RAG Chunking Comparison Demo[/bold blue]")
     console.print("=" * 50)
 
     # Sample questions
@@ -127,12 +129,12 @@ def main(
     if naive_mode:
         baseline_questions = sample_questions(limit=questions, seed=seed)
         candidate_questions = sample_questions(limit=questions, seed=seed + 1)
-        console.print(f"[dim]Mode: NAIVE (different questions for each approach)[/dim]")
+        console.print("[dim]Mode: NAIVE (different questions for each approach)[/dim]")
     else:
         all_questions = sample_questions(limit=questions, seed=seed)
         baseline_questions = all_questions
         candidate_questions = all_questions
-        console.print(f"[dim]Mode: PAIRED (same questions for both approaches)[/dim]")
+        console.print("[dim]Mode: PAIRED (same questions for both approaches)[/dim]")
 
     # Create chunkers
     baseline_chunker = ConfigurableChunker(
@@ -257,15 +259,15 @@ def _display_statistical_summary(result: dict[str, Any]) -> None:
     console.print(f"  Candidate mean score: {result['mean_candidate']:.3f}")
     console.print(f"  Average improvement:  {result['mean_delta']:+.3f}")
 
-    console.print(f"\n  [dim]Wilcoxon signed-rank test (paired comparison):[/dim]")
+    console.print("\n  [dim]Wilcoxon signed-rank test (paired comparison):[/dim]")
     console.print(f"    P-value: {result['p_value']:.6f} {'(significant)' if result['is_significant'] else '(not significant)'}")
     console.print(f"    Cliff's Delta: {result['cliffs_delta']:.3f} ({result['effect_size_label']} effect size)")
 
     console.print(f"\n  [bold]Conclusion:[/bold] {result['winner'].upper()} wins")
     if result['is_significant']:
-        console.print(f"    The difference is statistically significant (p < 0.05)")
+        console.print("    The difference is statistically significant (p < 0.05)")
     else:
-        console.print(f"    Cannot conclude the difference is real (could be random variation)")
+        console.print("    Cannot conclude the difference is real (could be random variation)")
 
 
 def _export_results(

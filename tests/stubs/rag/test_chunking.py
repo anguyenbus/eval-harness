@@ -2,7 +2,7 @@
 
 import pytest
 
-from eval_harness.stubs.rag.chunking import ChunkingStrategy, ConfigurableChunker
+from eval_harness.stubs.rag.chunking import ConfigurableChunker
 
 
 class TestChunkingStrategy:

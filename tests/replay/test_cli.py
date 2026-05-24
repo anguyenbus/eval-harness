@@ -4,7 +4,6 @@ Tests for replay CLI entry points.
 
 from unittest.mock import MagicMock, patch
 
-import pytest
 from click.testing import CliRunner
 
 from eval_harness.runners.generate_spans import main as generate_spans_main

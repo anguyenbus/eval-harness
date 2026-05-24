@@ -2,8 +2,6 @@
 Tests for span generator configuration loading.
 """
 
-import os
-import tempfile
 from pathlib import Path
 
 import pytest

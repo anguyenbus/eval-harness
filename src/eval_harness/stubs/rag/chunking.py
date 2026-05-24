@@ -25,6 +25,7 @@ class ChunkingStrategy(Protocol):
     Example:
         >>> def use_chunker(chunker: ChunkingStrategy) -> None:
         ...     chunks = chunker.chunk("doc1", "some text")
+
     """
 
     def chunk(self, doc_id: str, text: str) -> list[dict]:
@@ -38,6 +39,7 @@ class ChunkingStrategy(Protocol):
         Returns:
             List of chunk dictionaries with chunk_id, doc_id, text,
             char_span, and metadata fields.
+
         """
         ...
 

@@ -27,8 +27,12 @@ uv run eval-parsing --dataset dp_bench --parser fast
 # Run RAG evaluation (RAGAS LLM-judge metrics)
 uv run eval-rag --slice nano --rag stub-local
 
-# Generate synthetic spans for replay evaluation (stores metrics in Phoenix)
+# Generate baseline spans for replay evaluation (stores metrics in Phoenix)
 uv run generate-spans --limit=10
+
+# Verify Phoenix connectivity before running evaluations
+uv run eval-harness-check phoenix
+uv run eval-harness-check config  # Display resolved configuration
 
 # Run replay evaluation comparing chunking strategies
 uv run eval-replay --candidate=stub-chunks-512-overlap-150 --baseline=stub-local --limit=10
@@ -216,7 +220,12 @@ uv sync --all-extras --replay
 # 1. Start Phoenix server
 python -m phoenix.server.main serve
 
-# 2. Generate synthetic spans with stored evaluation metrics
+# 2. Verify Phoenix connectivity (recommended before running evaluations)
+export PHOENIX_ENDPOINT="http://localhost:6006"  # Or your production endpoint
+uv run eval-harness-check phoenix
+uv run eval-harness-check config  # Display resolved configuration
+
+# 3. Generate baseline spans with stored evaluation metrics
 uv run generate-spans --limit=10
 
 # 3. Run replay evaluation comparing configurations

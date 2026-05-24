@@ -4,8 +4,6 @@ Tests for stub RAG pipeline instrumentation.
 
 from unittest.mock import MagicMock, Mock, patch
 
-import pytest
-
 from eval_harness.stubs.rag.embedder import SentenceTransformersEmbedder
 from eval_harness.stubs.rag.generator import LLMGenerator
 from eval_harness.stubs.rag.retriever import SemanticRetriever

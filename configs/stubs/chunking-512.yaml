@@ -1,0 +1,9 @@
+# Stub service configuration for chunk_size=512, overlap=50
+
+chunking_strategy: fixed
+chunk_size: 512
+chunk_overlap: 50
+embedding_model: sentence-transformers/all-MiniLM-L6-v2
+port: 8081
+corpus_path: ../../data/rag/legal_rag_bench/corpus_files
+phoenix_endpoint: http://localhost:6006

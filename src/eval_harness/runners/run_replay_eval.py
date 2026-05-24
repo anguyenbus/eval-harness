@@ -23,7 +23,9 @@ from dotenv import load_dotenv
 
 from eval_harness.adapters.rag_adapter import RagAdapter
 from eval_harness.config import load_config
+from eval_harness.replay.candidate_config import CandidateConfig
 from eval_harness.replay.comparison import paired_comparison
+from eval_harness.replay.http_client import HTTPClient
 from eval_harness.replay.phoenix_client import PhoenixClient
 
 # Disable DeepEval telemetry
@@ -64,7 +66,6 @@ def _get_tracer(phoenix_endpoint: str, project_name: str) -> Any:
             return _tracer
 
         try:
-
             from eval_harness.stubs.span_generator.tracer import setup_tracer
 
             _tracer_provider, _tracer = setup_tracer(
@@ -159,7 +160,7 @@ def _extract_baseline_score_from_span(span: dict[str, Any]) -> float | None:
     for key in faithfulness_keys:
         if key in span:
             val = span[key]
-            if val is not None and not (isinstance(val, float) and str(val) == 'nan'):
+            if val is not None and not (isinstance(val, float) and str(val) == "nan"):
                 try:
                     return float(val)
                 except (ValueError, TypeError):
@@ -173,7 +174,7 @@ def _extract_baseline_score_from_span(span: dict[str, Any]) -> float | None:
             if key in attrs:
                 val = attrs[key]
                 is_valid = val is not None and not (
-                    isinstance(val, float) and str(val) == 'nan'
+                    isinstance(val, float) and str(val) == "nan"
                 )
                 if is_valid:
                     try:
@@ -217,7 +218,7 @@ def _extract_all_baseline_scores(span: dict[str, Any]) -> dict[str, float]:
     for key, metric_name in metric_map.items():
         if key in span:
             val = span[key]
-            if val is not None and not (isinstance(val, float) and str(val) == 'nan'):
+            if val is not None and not (isinstance(val, float) and str(val) == "nan"):
                 try:
                     metrics[metric_name] = float(val)
                 except (ValueError, TypeError):
@@ -228,12 +229,13 @@ def _extract_all_baseline_scores(span: dict[str, Any]) -> dict[str, float]:
 
 def _run_adapter_on_questions(
     questions: list[str],
-    adapter: RagAdapter,
+    adapter: RagAdapter | None,
     corpus_dir: Path,
     expected_answers: list[str] | None = None,
     tracer: Any = None,
     candidate_name: str = "candidate",
-) -> tuple[list[dict[str, float]], int]:
+    http_client: HTTPClient | None = None,
+) -> tuple[list[dict[str, float]], int, list[dict[str, Any]]]:
     """
     Run RAG adapter on questions and return scores with error count.
 
@@ -244,10 +246,12 @@ def _run_adapter_on_questions(
         expected_answers: Optional list of expected answers for evaluation.
         tracer: Optional tracer for creating parent spans.
         candidate_name: Name for candidate (used in span naming).
+        http_client: Optional HTTP client for HTTP-based evaluation.
 
     Returns:
-        Tuple of (list of score dicts, error_count). Errors are NOT included
-        in scores - only successful results are returned.
+        Tuple of (list of score dicts, error_count, list of details dicts).
+        Details dicts contain retrieved_contexts and response_text.
+        Errors are NOT included in scores - only successful results are returned.
 
     """
     from openinference.semconv.trace import (
@@ -268,10 +272,13 @@ def _run_adapter_on_questions(
     )
 
     all_scores = []
+    all_details = []  # Store retrieved_contexts and response_text
     error_count = 0
 
     for i, question in enumerate(questions):
         span_context = None
+        retrieved_contexts = []
+        response_text = ""
         try:
             # Create parent span for replay query
             if tracer is not None:
@@ -284,7 +291,41 @@ def _run_adapter_on_questions(
                 span.set_attribute(SpanAttributes.OUTPUT_VALUE, "")
 
             # Query RAG system
-            output = adapter.query(question, corpus_dir)
+            if http_client:
+                # HTTP-based invocation
+                http_response = http_client.query(
+                    {
+                        "question": question,
+                        "top_k": 5,  # TODO: make top_k configurable
+                    }
+                )
+                # Extract retrieved contexts and response text
+                retrieved_contexts = http_response.get("retrieved_contexts", [])
+                response_text = http_response.get("response", {}).get("text", "")
+                # Convert HTTP response to adapter output format
+                output = {
+                    "answer": {
+                        "text": response_text,
+                        "answer_supported": True,  # Default for HTTP
+                        "citations": [],  # Not provided by HTTP contract
+                    },
+                    "timings_ms": http_response.get(
+                        "timings_ms",
+                        {
+                            "retrieval": 0.0,
+                            "generation": 0.0,
+                            "total": 0.0,
+                        },
+                    ),
+                }
+            else:
+                # Import-based invocation
+                output = adapter.query(question, corpus_dir)
+                # Extract from adapter output
+                retrieved_contexts = [
+                    c.get("text", "") for c in output.get("retrieved_chunks", [])
+                ]
+                response_text = output.get("answer", {}).get("text", "")
 
             # Get expected answer (handle empty for context_recall)
             expected = (
@@ -345,19 +386,32 @@ def _run_adapter_on_questions(
             # Error path - log and count, don't add zero scores
             error_count += 1
             click.echo(
-                f"WARNING: Error processing question {i+1}/{len(questions)}: {e}",
+                f"WARNING: Error processing question {i + 1}/{len(questions)}: {e}",
                 err=True,
             )
             # Ensure span is closed on error
             if span_context is not None:
                 span_context.__exit__(None, None, None)
+            # Add empty details for error
+            all_details.append(
+                {
+                    "retrieved_contexts": [],
+                    "response_text": "",
+                }
+            )
         else:
             # Golden path - success
             all_scores.append(scores)
+            all_details.append(
+                {
+                    "retrieved_contexts": retrieved_contexts,
+                    "response_text": response_text,
+                }
+            )
             if span_context is not None:
                 span_context.__exit__(None, None, None)
 
-    return all_scores, error_count
+    return all_scores, error_count, all_details
 
 
 def _get_rag_adapter(
@@ -367,6 +421,13 @@ def _get_rag_adapter(
 ) -> RagAdapter:
     """
     Get RAG adapter by name.
+
+    DEPRECATED: Use --candidate-spec for HTTP-based evaluation instead.
+    Import-based invocation will be removed in a future release.
+
+    [DEPRECATION WARNING] Import-based invocation is deprecated.
+    Migrate to HTTP-based evaluation using --candidate-spec.
+    See docs/http-service-migration.md for migration guide.
 
     Parses candidate name to extract configuration. Supported formats:
     - stub-local: Default stub with default chunking
@@ -391,9 +452,7 @@ def _get_rag_adapter(
 
     # Validate rag_name format
     if not rag_name.startswith("stub-"):
-        raise ValueError(
-            f"Invalid adapter name '{rag_name}': must start with 'stub-'"
-        )
+        raise ValueError(f"Invalid adapter name '{rag_name}': must start with 'stub-'")
 
     # Parse candidate name for chunking config
     chunk_size = None
@@ -461,6 +520,12 @@ def _get_rag_adapter(
     help="Baseline adapter name (default: stub-local)",
 )
 @click.option(
+    "--candidate-spec",
+    type=Path,
+    default=None,
+    help="Path to candidate spec YAML file for HTTP-based evaluation",
+)
+@click.option(
     "--project",
     type=str,
     default="case-assistant-synthetic",
@@ -508,6 +573,7 @@ def main(
     limit: int,
     top_k: int,
     production_baseline: bool,
+    candidate_spec: Path | None,
 ) -> None:
     """
     Run replay evaluation against generated spans.
@@ -517,6 +583,9 @@ def main(
 
     Example:
         eval-replay --candidate=stub-local --baseline=stub-local --limit 10
+
+    HTTP-based evaluation:
+        eval-replay --candidate-spec configs/candidates/stub-service.yaml --limit 10
 
     """
     global _tracer_provider
@@ -577,16 +646,52 @@ def main(
             click.echo(f"WARNING: Could not initialize embedder: {e}", err=True)
             embedder = None
 
-        # Get candidate adapter
+        # Get candidate adapter or HTTP client
         click.echo(f"Running candidate: {candidate}")
-        candidate_adapter = _get_rag_adapter(candidate, top_k, embedder)
-        candidate_scores, candidate_errors = _run_adapter_on_questions(
+
+        # Check if using HTTP path (candidate-spec or http:// prefix)
+        http_client = None
+        use_http = False
+
+        if candidate_spec:
+            # Load candidate spec from YAML
+            click.echo(f"Loading candidate spec from: {candidate_spec}")
+            candidate_config = CandidateConfig.from_yaml_file(candidate_spec)
+            http_client = HTTPClient(candidate_config, health_check_enabled=True)
+            use_http = True
+            click.echo(f"  Using HTTP client: {candidate_config.candidate.service_url}")
+        elif candidate.startswith(("http://", "https://")):
+            # Direct URL (for backward compatibility)
+            click.echo(f"  Using HTTP endpoint: {candidate}")
+            candidate_config = CandidateConfig(
+                name=candidate,
+                description=f"Direct HTTP endpoint: {candidate}",
+                candidate={
+                    "service_url": candidate,
+                    "service_version": "unknown",
+                    "contract_version": "1.0",
+                    "timeout_seconds": 30,
+                    "max_retries": 2,
+                },
+            )
+            http_client = HTTPClient(candidate_config, health_check_enabled=True)
+            use_http = True
+        else:
+            # Import-based invocation (deprecated but still supported)
+            candidate_adapter = _get_rag_adapter(candidate, top_k, embedder)
+        # NOTE: HTTP mode does not create replay spans (eval-only mode)
+        (
+            candidate_scores,
+            candidate_errors,
+            candidate_details,
+        ) = _run_adapter_on_questions(
             questions,
-            candidate_adapter,
+            candidate_adapter if not use_http else None,
             corpus_dir,
             expected_answers,
-            tracer=_get_tracer(endpoint, project),
+            tracer=None if use_http else _get_tracer(endpoint, project),
             candidate_name=candidate,
+            http_client=http_client,
         )
 
         # Calculate candidate averages
@@ -613,9 +718,7 @@ def main(
             f"  context_precision: {candidate_avgs['rag_context_precision']:.4f}"
         )
         click.echo(f"  context_recall: {candidate_avgs['rag_context_recall']:.4f}")
-        click.echo(
-            f"  answer_relevancy: {candidate_avgs['rag_answer_relevancy']:.4f}"
-        )
+        click.echo(f"  answer_relevancy: {candidate_avgs['rag_answer_relevancy']:.4f}")
         click.echo(f"  latency_total_ms: {candidate_avgs['rag_latency_total_ms']:.0f}")
 
         # Metric key mapping for consistent lookups
@@ -637,6 +740,7 @@ def main(
             # Extract all baseline scores from span attributes (production results)
             baseline_all_scores = []
             baseline_faithfulness = []
+            baseline_errors = 0  # Production spans have no errors (already completed)
             for span in root_spans:
                 scores = _extract_all_baseline_scores(span)
                 if scores:
@@ -650,8 +754,7 @@ def main(
                     err=True,
                 )
                 click.echo(
-                    "Hint: Spans must contain 'faithfulness' attribute "
-                    "in span output"
+                    "Hint: Spans must contain 'faithfulness' attribute in span output"
                 )
                 sys.exit(1)
 
@@ -694,7 +797,11 @@ def main(
             else:
                 click.echo(f"Running baseline adapter: {baseline}")
                 baseline_adapter = _get_rag_adapter(baseline, top_k, embedder)
-                baseline_results, baseline_errors = _run_adapter_on_questions(
+                (
+                    baseline_results,
+                    baseline_errors,
+                    baseline_details,
+                ) = _run_adapter_on_questions(
                     questions,
                     baseline_adapter,
                     corpus_dir,
@@ -702,9 +809,7 @@ def main(
                     tracer=_get_tracer(endpoint, project),
                     candidate_name=baseline,
                 )
-                baseline_scores = [
-                    s.get("faithfulness", 0.0) for s in baseline_results
-                ]
+                baseline_scores = [s.get("faithfulness", 0.0) for s in baseline_results]
                 baseline_avgs = {}
                 for rag_metric, score_key in metric_key_map.items():
                     values = [s.get(score_key, 0.0) for s in baseline_results]
@@ -714,7 +819,7 @@ def main(
                 baseline_all_scores = baseline_results  # For comparison
                 click.echo(
                     f"Baseline avg faithfulness: "
-                    f"{sum(baseline_scores)/len(baseline_scores):.4f}"
+                    f"{sum(baseline_scores) / len(baseline_scores):.4f}"
                 )
             candidate_faithfulness = [
                 s.get("faithfulness", 0.0) for s in candidate_scores
@@ -799,10 +904,12 @@ def main(
         click.echo(f"Candidate: {candidate}")
         click.echo(f"Baseline: {baseline}")
         click.echo(f"Total questions: {len(questions)}")
-        click.echo(
+        msg = (
             f"Successful comparisons: {len(candidate_scores)} "
-            f"(candidate errors: {candidate_errors}, baseline errors: {baseline_errors})"
+            f"(candidate errors: {candidate_errors}, "
+            f"baseline errors: {baseline_errors})"
         )
+        click.echo(msg)
 
         header = (
             f"\n{'Metric':<20} {'Candidate':>10} {'Baseline':>10} "
@@ -842,6 +949,9 @@ def main(
                 )
                 click.echo(na_line)
 
+        # Use faithfulness as primary metric for pass/fail
+        primary_result = results.get("faithfulness")
+
         # Show error rates prominently
         click.echo("\n" + "-" * 70)
         click.echo("Error Rates:")
@@ -864,12 +974,9 @@ def main(
                 )
             else:
                 click.echo(f"  Delta: {err_delta:.1f}%")
-            click.echo(
-                f"  Error Rate Check: {'PASS' if primary_result.error_rate_pass_fail else 'FAIL'}"
-            )
+            err_check = "PASS" if primary_result.error_rate_pass_fail else "FAIL"
+            click.echo(f"  Error Rate Check: {err_check}")
 
-        # Use faithfulness as primary metric for pass/fail
-        primary_result = results.get("faithfulness")
         if primary_result:
             click.echo("\n" + "=" * 50)
             click.echo(
@@ -878,9 +985,8 @@ def main(
             click.echo(
                 f"Score Comparison: {'PASS' if primary_result.pass_fail else 'FAIL'}"
             )
-            click.echo(
-                f"Overall Verdict: {'PASS ✓' if primary_result.overall_pass_fail else 'FAIL ✗'}"
-            )
+            verdict = "PASS ✓" if primary_result.overall_pass_fail else "FAIL ✗"
+            click.echo(f"Overall Verdict: {verdict}")
 
         # Export results if requested
         if output:
@@ -907,24 +1013,50 @@ def main(
                 detail = {
                     "question": question,
                     "expected_answer": expected_answers[i] if expected_answers else "",
-                    "baseline": {},
-                    "candidate": {},
+                    "baseline": {
+                        "scores": {},
+                        "retrieved_contexts": [],
+                        "response_text": "",
+                    },
+                    "candidate": {
+                        "scores": {},
+                        "retrieved_contexts": [],
+                        "response_text": "",
+                    },
                 }
 
                 # Baseline scores
                 if i < len(baseline_all_scores):
                     for metric_name, score_key in metric_key_map.items():
                         key = score_key.replace("rag_", "")
-                        detail["baseline"][metric_name] = baseline_all_scores[i].get(
-                            key, 0.0
-                        )
+                        detail["baseline"]["scores"][metric_name] = baseline_all_scores[
+                            i
+                        ].get(key, 0.0)
+
+                # Baseline chunks and response (only when re-running)
+                if not production_baseline and i < len(baseline_details):
+                    detail["baseline"]["retrieved_contexts"] = baseline_details[i].get(
+                        "retrieved_contexts", []
+                    )
+                    detail["baseline"]["response_text"] = baseline_details[i].get(
+                        "response_text", ""
+                    )
 
                 # Candidate scores
                 if i < len(candidate_scores):
                     for rag_metric in metric_key_map.keys():
-                        detail["candidate"][rag_metric] = candidate_scores[i].get(
-                            metric_key_map[rag_metric], 0.0
-                        )
+                        detail["candidate"]["scores"][rag_metric] = candidate_scores[
+                            i
+                        ].get(metric_key_map[rag_metric], 0.0)
+
+                # Candidate chunks and response
+                if i < len(candidate_details):
+                    detail["candidate"]["retrieved_contexts"] = candidate_details[
+                        i
+                    ].get("retrieved_contexts", [])
+                    detail["candidate"]["response_text"] = candidate_details[i].get(
+                        "response_text", ""
+                    )
 
                 per_question_details.append(detail)
 
@@ -941,18 +1073,18 @@ def main(
                 "num_spans": len(root_spans),
                 "averages": {
                     "candidate": {
-                        "faithfulness": candidate_avgs['rag_faithfulness'],
-                        "context_precision": candidate_avgs['rag_context_precision'],
-                        "context_recall": candidate_avgs['rag_context_recall'],
-                        "answer_relevancy": candidate_avgs['rag_answer_relevancy'],
-                        "latency_total_ms": candidate_avgs['rag_latency_total_ms'],
+                        "faithfulness": candidate_avgs["rag_faithfulness"],
+                        "context_precision": candidate_avgs["rag_context_precision"],
+                        "context_recall": candidate_avgs["rag_context_recall"],
+                        "answer_relevancy": candidate_avgs["rag_answer_relevancy"],
+                        "latency_total_ms": candidate_avgs["rag_latency_total_ms"],
                     },
                     "baseline": {
-                        "faithfulness": baseline_avgs['rag_faithfulness'],
-                        "context_precision": baseline_avgs['rag_context_precision'],
-                        "context_recall": baseline_avgs['rag_context_recall'],
-                        "answer_relevancy": baseline_avgs['rag_answer_relevancy'],
-                        "latency_total_ms": baseline_avgs['rag_latency_total_ms'],
+                        "faithfulness": baseline_avgs["rag_faithfulness"],
+                        "context_precision": baseline_avgs["rag_context_precision"],
+                        "context_recall": baseline_avgs["rag_context_recall"],
+                        "answer_relevancy": baseline_avgs["rag_answer_relevancy"],
+                        "latency_total_ms": baseline_avgs["rag_latency_total_ms"],
                     },
                 },
                 "statistical_tests": comparison_results,
@@ -983,28 +1115,32 @@ def main(
             with open(csv_path, "w", newline="") as f:
                 writer = csv.writer(f)
                 # Header
-                writer.writerow([
-                    "metric",
-                    "candidate_avg",
-                    "baseline_avg",
-                    "p_value",
-                    "effect_size",
-                    "winner",
-                ])
+                writer.writerow(
+                    [
+                        "metric",
+                        "candidate_avg",
+                        "baseline_avg",
+                        "p_value",
+                        "effect_size",
+                        "winner",
+                    ]
+                )
                 # Rows
                 for metric_name, result in results.items():
                     if result:
                         cand_avg, base_avg = metric_averages.get(
                             metric_name, (0.0, 0.0)
                         )
-                        writer.writerow([
-                            metric_name,
-                            f"{cand_avg:.4f}",
-                            f"{base_avg:.4f}",
-                            f"{result.p_value:.4f}",
-                            f"{result.effect_size:.4f}",
-                            result.winner,
-                        ])
+                        writer.writerow(
+                            [
+                                metric_name,
+                                f"{cand_avg:.4f}",
+                                f"{base_avg:.4f}",
+                                f"{result.p_value:.4f}",
+                                f"{result.effect_size:.4f}",
+                                result.winner,
+                            ]
+                        )
 
             click.echo(f"CSV summary: {csv_path}")
 

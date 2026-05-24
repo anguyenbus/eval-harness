@@ -152,8 +152,6 @@ def run_generator(
         # Import stub pipeline modules
         # NOTE: No reload needed - tracer is globally registered via set_global_tracer_provider=True
         # Modules use trace.get_tracer() to access the same tracer instance
-        import eval_harness.stubs.rag.embedder as embedder_module
-        import eval_harness.stubs.rag.generator as generator_module
         from eval_harness.stubs.rag.chromadb_query import query
 
         # Create session_id for grouping

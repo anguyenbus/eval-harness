@@ -8,8 +8,6 @@ configurations.
 from pathlib import Path
 from unittest.mock import MagicMock
 
-import pytest
-
 
 class TestDualPipelineRunner:
     """Test DualPipelineRunner for side-by-side RAG comparison."""

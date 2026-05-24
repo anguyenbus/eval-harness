@@ -5,7 +5,6 @@ Note: Some tests are skipped due to dependency issues in the test environment.
 The core functionality is tested through integration tests.
 """
 
-from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 

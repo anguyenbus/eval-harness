@@ -49,11 +49,13 @@ phoenix = [
 replay = [
     "arize-phoenix>=4.0.0",
     "openinference-semantic-conventions>=0.1.0",
+    "fastapi>=0.100.0",
+    "uvicorn>=0.23.0",
+    "click>=8.0.0",
 ]
 bedrock = [
     "boto3>=1.0.0",
 ]
-
 [project.scripts]
 eval-parsing = "eval_harness.runners.run_parsing_eval:main"
 eval-rag = "eval_harness.runners.run_rag_eval:main"

@@ -4,8 +4,6 @@ Tests for replay task wrappers.
 
 from unittest.mock import MagicMock
 
-import pytest
-
 from eval_harness.replay.tasks import BaselineTask, CandidateTask
 
 
