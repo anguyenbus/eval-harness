@@ -15,7 +15,19 @@ from beartype import beartype
 
 # Constants
 DEFAULT_ALPHA: Final[float] = 0.05
-DEFAULT_EFFECT_SIZE_THRESHOLD: Final[float] = 0.5
+
+# Cliff's Delta effect size thresholds:
+# - negligible: < 0.15
+# - small: 0.15 - 0.33
+# - medium: 0.33 - 0.47
+# - large: >= 0.47
+#
+# DEFAULT_EFFECT_SIZE_THRESHOLD set to 0.15 (small) for practical significance.
+# Adjust based on your use case:
+# - 0.15: Detect small but meaningful improvements
+# - 0.33: Only care about medium+ effects
+# - 0.47: Only care about large effects
+DEFAULT_EFFECT_SIZE_THRESHOLD: Final[float] = 0.15
 
 
 @beartype
@@ -56,11 +68,15 @@ def paired_comparison(
     Args:
         candidate_scores: Scores from candidate adapter.
         baseline_scores: Scores from baseline adapter.
-        alpha: Significance threshold for p-value.
+        alpha: Significance threshold for p-value (default: 0.05).
         effect_size_threshold: Threshold for meaningful effect size.
+            Default: 0.15 (small effect per Cliff's Delta).
+            Options: 0.15 (small), 0.33 (medium), 0.47 (large).
 
     Returns:
         ComparisonResult with test statistics and determination.
+        - pass_fail: True if p_value < alpha AND |effect_size| >= threshold
+        - winner: "candidate" if effect_size > 0, "baseline" if < 0, "tie" if near 0
 
     Raises:
         ValueError: If score lists have different lengths.

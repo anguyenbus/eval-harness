@@ -150,7 +150,15 @@ def run_generator(
 
     try:
         # Import stub pipeline
+        # Ensure instrumentation is applied (reload once, not per-question)
+        import importlib
+
+        import eval_harness.stubs.rag.embedder as embedder_module
+        import eval_harness.stubs.rag.generator as generator_module
         from eval_harness.stubs.rag.chromadb_query import query
+
+        importlib.reload(embedder_module)
+        importlib.reload(generator_module)
 
         # Create session_id for grouping
         timestamp = time.strftime("%Y%m%d_%H%M%S")
@@ -194,18 +202,7 @@ def run_generator(
                     )
                     span.set_attribute(METADATA, metadata_json)
 
-                    # Call stub pipeline (emits child spans)
-                    # Note: We import the module here to trigger instrumentation
-                    import importlib
-
-                    import eval_harness.stubs.rag.embedder as embedder_module
-                    import eval_harness.stubs.rag.generator as generator_module
-
-                    # Force reload to ensure instrumentation is applied
-                    importlib.reload(embedder_module)
-                    importlib.reload(generator_module)
-
-                    # Execute stub pipeline query
+                    # Execute stub pipeline query (child spans auto-instrumented)
                     rag_output = query(
                         question=question.question,
                         corpus_dir=corpus_dir,

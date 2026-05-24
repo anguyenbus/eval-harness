@@ -245,9 +245,11 @@ def _run_adapter_on_questions(
     from eval_harness.adapters.deepeval_adapter import DeepEvalEvaluator
 
     # Initialize evaluator
+    # NOTE: Use gpt-4o-mini to match span generation baseline.
+    # Using a different judge model would introduce bias in comparison.
     evaluator = DeepEvalEvaluator(
         llm_provider="openai",
-        judge_model="gpt-4o",
+        judge_model="gpt-4o-mini",
         temperature=0.0,
         max_concurrent=4,
     )

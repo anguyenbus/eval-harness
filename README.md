@@ -1,6 +1,6 @@
 # eval-harness
 
-Evaluation framework for document parsing and RAG systems. Supports deterministic metrics, LLM-as-judge evaluation (RAGAS), and reproducible baseline comparisons using public benchmarks (OmniDocBench, DP-Bench, Legal RAG Bench).
+Evaluation framework for document parsing and RAG systems. Supports deterministic metrics, LLM-as-judge evaluation (RAGAS), reproducible baseline comparisons using public benchmarks (OmniDocBench, DP-Bench, Legal RAG Bench), and synthetic span generation for replay evaluation.
 
 ## Quick Start
 
@@ -10,6 +10,9 @@ uv sync
 
 # (Optional) Install Phoenix for observability
 uv sync --all-extras
+
+# (Optional) Install replay service dependencies
+uv sync --extra replay
 
 # Set API keys for RAGAS evaluation
 export OPENAI_API_KEY=sk-...
@@ -24,8 +27,19 @@ uv run eval-parsing --dataset dp_bench --parser fast
 # Run RAG evaluation (RAGAS LLM-judge metrics)
 uv run eval-rag --slice nano --rag stub-local
 
-# View results
-cat results/*.csv
+# Generate synthetic spans for replay evaluation (stores metrics in Phoenix)
+uv run generate-spans --limit=10
+
+# Run replay evaluation comparing chunking strategies
+uv run eval-replay --candidate=stub-chunks-512-overlap-150 --baseline=stub-local --limit=10
+
+# Run with production baseline (no re-evaluation)
+uv run eval-replay --candidate=stub-chunks-512-overlap-150 --production-baseline --output results/replay.json
+
+# View results (creates CSV + 2 JSON files)
+cat results/replay*.csv
+cat results/replay_summary.json
+cat results/replay_details.json
 ```
 
 ## First-Time Setup
@@ -33,7 +47,14 @@ cat results/*.csv
 ### 1. Install Dependencies
 
 ```bash
+# Core dependencies
 uv sync
+
+# Optional: Phoenix observability
+uv sync --all-extras
+
+# Optional: Replay service
+uv sync --extra replay
 ```
 
 ### 2. Set API Keys
@@ -73,8 +94,13 @@ datasets:
     cache_path: data/rag/legal_rag_bench
     k_values: [5, 10, 20]
     ragas:
-      judge_model: gpt-4o
+      judge_model: gpt-4o-mini
       judge_model_provider: openai
+
+generator:
+  phoenix_endpoint: ${PHOENIX_ENDPOINT:-http://localhost:6006}
+  project_name: case-assistant-synthetic
+  default_limit: 100
 ```
 
 ## Parsing Evaluation
@@ -158,12 +184,126 @@ uv run eval-rag --slice nano --rag stub-local --force-reingest
 | **Context Recall** | Retriever | Coverage of relevant information in retrieved chunks |
 | **Answer Relevancy** | End-to-end | Directness of response to original question |
 
-All metrics use LLM-as-a-judge (gpt-4o) for evaluation. See [docs/legal-rag-bench-guide.md](docs/legal-rag-bench-guide.md) for detailed explanations and examples.
+All metrics use LLM-as-a-judge (gpt-4o-mini) for evaluation. See [docs/legal-rag-bench-guide.md](docs/legal-rag-bench-guide.md) for detailed explanations and examples.
 
 ### Additional Metrics
 
 - **Relevant Passage Retrieved** - Binary: was the gold passage retrieved?
 - **Latency** - Total query time (ms)
+
+## Replay Evaluation
+
+Generate synthetic OpenInference spans, then compare candidate RAG configurations against production baselines using statistical testing.
+
+### Features
+
+- **Synthetic Span Generation**: Generate realistic spans from stub RAG pipeline
+- **Production Baseline**: Use stored scores from production spans (no re-evaluation)
+- **Statistical Comparison**: Paired Wilcoxon test + Cliff's Delta effect size
+- **Multi-Metric Evaluation**: Faithfulness, context precision, context recall, answer relevancy, latency
+- **Chunking Configuration**: Test different chunk sizes/overlaps via naming convention
+- **Multiple Output Formats**: CSV summary, JSON summary, JSON per-question details
+
+### Installation
+
+```bash
+uv sync --all-extras --replay
+```
+
+### Commands
+
+```bash
+# 1. Start Phoenix server
+python -m phoenix.server.main serve
+
+# 2. Generate synthetic spans with stored evaluation metrics
+uv run generate-spans --limit=10
+
+# 3. Run replay evaluation comparing configurations
+uv run eval-replay --candidate=stub-chunks-512-overlap-150 --baseline=stub-local --limit=10
+
+# 4. Use production baseline (no re-evaluation, faster/cheaper)
+uv run eval-replay --candidate=stub-chunks-512-overlap-150 --production-baseline --limit=10
+
+# 5. Export results (creates 3 files: CSV, summary JSON, details JSON)
+uv run eval-replay --candidate=stub-chunks-512-overlap-150 --baseline=stub-local --output results/replay_test.json
+```
+
+### Why Generate Spans?
+
+**Problem**: Replay evaluation needs pre-evaluated questions with known answers. Without stored baseline scores, you'd need to re-run the expensive LLM judge (gpt-4o) on every comparison.
+
+**Solution**: Generate synthetic spans once, store everything in Phoenix:
+- Questions from Legal RAG Bench (or your dataset)
+- Expected answers (ground truth)
+- Baseline scores (faithfulness, context precision, recall, relevancy)
+- Latency metrics
+
+**Data Used**:
+```bash
+# Source: Legal RAG Bench (isaacus/legal-rag-bench on HuggingFace)
+# - 100 legal reasoning questions
+# - 4,876 passage corpus
+# - Domain: Criminal law, jury procedures, evidence law
+
+# generate-spans flows:
+1. Load questions from dataset
+2. Run stub RAG pipeline (retrieval + generation)
+3. Evaluate with DeepEval metrics (gpt-4o LLM judge)
+4. Store results in Phoenix as span attributes
+5. Replay queries Phoenix for questions + stored scores
+```
+
+**Without `--production-baseline`**: Re-runs baseline adapter + re-evaluates with LLM judge (expensive).
+
+**With `--production-baseline`**: Uses stored scores from span attributes (fast, free).
+
+### Candidate Naming Convention
+
+Parse chunking config from candidate name:
+
+| Name | Chunk Size | Overlap |
+|------|------------|---------|
+| `stub-local` | default (512) | 0 |
+| `stub-chunks-512-overlap-150` | 512 | 150 |
+| `stub-chunks-256-overlap-50` | 256 | 50 |
+
+### Span Hierarchy
+
+Replay spans create parent CHAIN spans with same structure as synthetic spans:
+
+```
+replay_stub-chunks-512-overlap-150 (CHAIN)
+├── chromadb.query (RETRIEVER)
+│   └── embed.query (EMBEDDING)
+└── openai.generate (LLM)
+```
+
+### Output Files
+
+| File | Content |
+|------|---------|
+| `{name}_summary.json` | Averages + p-values + effect sizes |
+| `{name}_details.json` | Per-question baseline vs candidate scores |
+| `{name}.csv` | Spreadsheet-friendly metrics table |
+
+### Statistical Metrics
+
+| Metric | Test | Interpretation |
+|--------|------|----------------|
+| **p-value** | Wilcoxon signed-rank | Significant if < 0.05 |
+| **effect size** | Cliff's Delta | Magnitude: negligible (<0.15), small (0.15-0.33), medium (0.33-0.47), large (>0.47) |
+| **winner** | Mean comparison | `candidate` or `baseline` |
+| **pass_fail** | Combined | p-value + directional preference |
+
+### Documentation
+
+See [docs/replay-service.md](docs/replay-service.md) for comprehensive documentation including:
+- Architecture and data flow
+- CLI usage examples
+- Span schema reference
+- Migration path to production
+- Troubleshooting guide
 
 ## Phoenix Observability (Optional)
 
@@ -184,6 +324,12 @@ python -m phoenix.server.main serve
 # Run evaluation with Phoenix enabled
 uv run eval-rag --slice nano --rag stub-local --enable-phoenix
 
+# Generate synthetic spans (auto-traces to Phoenix)
+uv run generate-spans --limit=10
+
+# Run replay evaluation (creates replay_* spans)
+uv run eval-replay --candidate=stub-chunks-512-overlap-150 --baseline=stub-local
+
 # View traces in browser
 open http://localhost:6006
 ```
@@ -194,18 +340,25 @@ Phoenix creates nested spans showing each stage of RAG evaluation:
 
 | Span Kind | Description |
 |-----------|-------------|
-| **CHAIN** | Parent/root span grouping related operations (eval_run, rag_query) |
+| **CHAIN** | Parent/root span grouping related operations |
 | **RETRIEVER** | Document retrieval from vector store |
+| **EMBEDDING** | Query embedding generation |
 | **LLM** | LLM generation step |
 | **EVALUATOR** | RAGAS LLM-judge evaluation |
 
-**Example trace structure:**
+**Example trace structures:**
 ```
-eval_run (CHAIN)
-└── rag_query (CHAIN)
-    ├── retrieval (RETRIEVER)
-    ├── generation (LLM)
-    └── evaluator (EVALUATOR)
+# Synthetic span generation
+synthetic_rag_query (CHAIN)
+├── chromadb.query (RETRIEVER)
+│   └── embed.query (EMBEDDING)
+└── openai.generate (LLM)
+
+# Replay evaluation
+replay_stub-chunks-512-overlap-150 (CHAIN)
+├── chromadb.query (RETRIEVER)
+│   └── embed.query (EMBEDDING)
+└── openai.generate (LLM)
 ```
 
 ### Features
@@ -245,28 +398,6 @@ q_0,"Bob and Ted...","No. While the bench book...","I don't have enough...",True
 q_1,"What is the burden...","The prosecution bears...","The prosecution must...",False,0.85,0.60,0.75,0.92,PASS,1845
 ```
 
-## Configuration
-
-Edit `eval_config.yaml` for dataset paths and model settings:
-
-```yaml
-datasets:
-  legal_rag_bench:
-    path: data/rag/legal_rag_bench/corpus_files
-    cache_path: data/rag/legal_rag_bench
-    k_values: [5, 10, 20]
-    ragas:
-      judge_model: gpt-4o
-      judge_model_provider: openai
-      temperature: 0
-
-  omnidocbench:
-    path: /path/to/omnidocbench
-
-  dp_bench:
-    path: /path/to/dp_bench
-```
-
 ## Project Structure
 
 ```
@@ -278,7 +409,8 @@ datasets:
 │
 ├── contracts/              # JSON Schema contracts
 ├── docs/                   # Documentation
-│   └── legal-rag-bench-guide.md
+│   ├── legal-rag-bench-guide.md
+│   └── replay-service.md
 │
 ├── scripts/                # Dataset utilities
 │   ├── download_datasets.py
@@ -298,22 +430,38 @@ datasets:
 │   ├── metrics/            # ALL evaluation metrics
 │   │   ├── parsing/        # NID, TEDS, MHS, BLEU, METEOR
 │   │   └── ragas_config.py  # RAGAS LLM/embedding backends
+│   ├── replay/             # Replay evaluation module
+│   │   ├── phoenix_client.py
+│   │   ├── corpus.py
+│   │   ├── tasks.py
+│   │   └── comparison.py
 │   ├── runners/            # CLI entry points
 │   │   ├── run_parsing_eval.py
-│   │   └── run_rag_eval.py
-│   └── stubs/              # REFERENCE IMPLEMENTATIONS (demo only)
-│       ├── parsing/
-│       │   ├── stub_parser.py
-│       │   ├── digital_pdf_parser.py
-│       │   └── docling_parser.py
-│       └── rag/            # ChromaDB stub for demonstration
-│           ├── chromadb_client.py
-│           ├── chromadb_config.py
-│           ├── chromadb_query.py
-│           ├── chunker.py
-│           ├── embedder.py
-│           ├── generator.py
-│           └── ingestion.py
+│   │   ├── run_rag_eval.py
+│   │   ├── generate_spans.py
+│   │   └── run_replay_eval.py
+│   ├── stubs/              # REFERENCE IMPLEMENTATIONS (demo only)
+│   │   ├── parsing/
+│   │   │   ├── stub_parser.py
+│   │   │   ├── digital_pdf_parser.py
+│   │   │   └── docling_parser.py
+│   │   ├── rag/            # ChromaDB stub for demonstration
+│   │   │   ├── chromadb_client.py
+│   │   │   ├── chromadb_config.py
+│   │   │   ├── chromadb_query.py
+│   │   │   ├── chunker.py
+│   │   │   ├── embedder.py
+│   │   │   ├── generator.py
+│   │   │   └── ingestion.py
+│   │   └── span_generator/ # Synthetic span generation
+│   │       ├── tracer.py
+│   │       ├── span_schema.py
+│   │       ├── loader.py
+│   │       ├── runner.py
+│   │       └── config.py
+│   └── observability/      # Phoenix integration
+│       ├── config.py
+│       └── phoenix_adapter.py
 │
 ├── tests/                  # Unit and integration tests
 │
@@ -349,6 +497,10 @@ datasets:
 **Observability (optional):**
 - `arize-phoenix>=4.0.0` - RAG pipeline tracing and visualization
 - `openinference-instrumentation-openai` - OpenAI instrumentation for RAGAS internal traces
+
+**Replay (optional):**
+- `arize-phoenix>=4.0.0` - Phoenix SDK for span export/query
+- `openinference-semantic-conventions>=0.1.0` - OpenInference attribute constants
 
 ## Using Your Own RAG System
 
@@ -387,6 +539,7 @@ Other vector stores (Pinecone, pgvector, Weaviate) follow the same adapter patte
 ## Documentation
 
 - [Legal RAG Bench: Comprehensive Guide](docs/legal-rag-bench-guide.md) - Dataset structure, RAGAS metrics explained, score interpretation
+- [Replay Service Documentation](docs/replay-service.md) - Synthetic span generation and replay evaluation
 - [Design Documents](docs/design/) - Architecture, data flow, and schema design
 - [OpenSearch Integration Guide](docs/guides/opensearch-integration.md) - Complete walkthrough for OpenSearch users
 - [Parser Output Schema Explained](docs/guides/parser-output-schema-explained.md) - Why the universal schema exists

@@ -16,7 +16,7 @@
   "top_k": 5,
   "evaluation_framework": "deepeval",
   "framework_version": "4.0.3",
-  "judge_model": "gpt-4o",
+  "judge_model": "gpt-4o-mini",
   "phoenix": {
     "enabled": true,
     "trace_count": 10,
