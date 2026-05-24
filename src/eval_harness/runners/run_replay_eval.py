@@ -781,7 +781,13 @@ def main(
         results = {}
         for metric_name, cand_vals, base_vals in metrics_to_compare:
             try:
-                results[metric_name] = paired_comparison(cand_vals, base_vals)
+                results[metric_name] = paired_comparison(
+                    cand_vals,
+                    base_vals,
+                    candidate_errors=candidate_errors,
+                    baseline_errors=baseline_errors,
+                    total_questions=len(questions),
+                )
             except Exception as e:
                 click.echo(f"WARNING: Could not compare {metric_name}: {e}", err=True)
                 results[metric_name] = None
@@ -792,7 +798,11 @@ def main(
         click.echo("=" * 50)
         click.echo(f"Candidate: {candidate}")
         click.echo(f"Baseline: {baseline}")
-        click.echo(f"Questions evaluated: {len(questions)}")
+        click.echo(f"Total questions: {len(questions)}")
+        click.echo(
+            f"Successful comparisons: {len(candidate_scores)} "
+            f"(candidate errors: {candidate_errors}, baseline errors: {baseline_errors})"
+        )
 
         header = (
             f"\n{'Metric':<20} {'Candidate':>10} {'Baseline':>10} "
@@ -819,10 +829,11 @@ def main(
 
             if result:
                 sig = "YES" if result.p_value < 0.05 else "NO"
+                overall_sig = "✓" if result.overall_pass_fail else "✗"
                 click.echo(
                     f"{metric_name:<20} {cand_avg:>10.4f} {base_avg:>10.4f} "
                     f"{result.p_value:>10.4f} {result.effect_size:>10.4f} "
-                    f"{result.winner.upper():>10} ({sig})"
+                    f"{result.winner.upper():>7} ({sig}) {overall_sig}"
                 )
             else:
                 na_line = (
@@ -831,14 +842,44 @@ def main(
                 )
                 click.echo(na_line)
 
+        # Show error rates prominently
+        click.echo("\n" + "-" * 70)
+        click.echo("Error Rates:")
+        if primary_result:
+            candidate_err_pct = primary_result.candidate_error_rate * 100
+            baseline_err_pct = primary_result.baseline_error_rate * 100
+            err_delta = candidate_err_pct - baseline_err_pct
+            click.echo(
+                f"  Candidate: {candidate_err_pct:.1f}% "
+                f"({candidate_errors}/{len(questions) + candidate_errors})"
+            )
+            click.echo(
+                f"  Baseline:  {baseline_err_pct:.1f}% "
+                f"({baseline_errors}/{len(questions) + baseline_errors})"
+            )
+            if err_delta > 0:
+                click.echo(
+                    f"  Delta: +{err_delta:.1f}% (candidate has higher error rate)",
+                    err=True,
+                )
+            else:
+                click.echo(f"  Delta: {err_delta:.1f}%")
+            click.echo(
+                f"  Error Rate Check: {'PASS' if primary_result.error_rate_pass_fail else 'FAIL'}"
+            )
+
         # Use faithfulness as primary metric for pass/fail
         primary_result = results.get("faithfulness")
         if primary_result:
+            click.echo("\n" + "=" * 50)
             click.echo(
-                f"\nPrimary Metric (faithfulness): {primary_result.winner.upper()}"
+                f"Primary Metric (faithfulness): {primary_result.winner.upper()}"
             )
             click.echo(
-                f"Pass/Fail: {'PASS' if primary_result.pass_fail else 'FAIL'}"
+                f"Score Comparison: {'PASS' if primary_result.pass_fail else 'FAIL'}"
+            )
+            click.echo(
+                f"Overall Verdict: {'PASS ✓' if primary_result.overall_pass_fail else 'FAIL ✗'}"
             )
 
         # Export results if requested
@@ -854,6 +895,10 @@ def main(
                         "effect_size": result.effect_size,
                         "winner": result.winner,
                         "pass_fail": result.pass_fail,
+                        "candidate_error_rate": result.candidate_error_rate,
+                        "baseline_error_rate": result.baseline_error_rate,
+                        "error_rate_pass_fail": result.error_rate_pass_fail,
+                        "overall_pass_fail": result.overall_pass_fail,
                     }
 
             # Build per-question details
