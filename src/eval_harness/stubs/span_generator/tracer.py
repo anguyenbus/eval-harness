@@ -93,7 +93,7 @@ def setup_tracer(
             project_name=project_name,
             protocol="http/protobuf",  # HTTP with protobuf payload
             batch=batch,
-            set_global_tracer_provider=False,  # Don't set global default
+            set_global_tracer_provider=True,  # Enable global access via trace.get_tracer()
         )
 
         # Get tracer from provider

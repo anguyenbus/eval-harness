@@ -32,9 +32,10 @@ def _get_tracer():
     global _tracer
     if _tracer is None:
         try:
-            from eval_harness.stubs.span_generator.tracer import setup_tracer
+            from opentelemetry.trace import get_tracer
 
-            _, _tracer = setup_tracer()
+            # Use globally registered tracer (set_global_tracer_provider=True in setup_tracer)
+            _tracer = get_tracer(__name__)
         except (ImportError, Exception):
             pass  # Tracing not available
     return _tracer

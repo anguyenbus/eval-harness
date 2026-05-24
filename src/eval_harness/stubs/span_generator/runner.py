@@ -149,16 +149,12 @@ def run_generator(
     failures = 0
 
     try:
-        # Import stub pipeline
-        # Ensure instrumentation is applied (reload once, not per-question)
-        import importlib
-
+        # Import stub pipeline modules
+        # NOTE: No reload needed - tracer is globally registered via set_global_tracer_provider=True
+        # Modules use trace.get_tracer() to access the same tracer instance
         import eval_harness.stubs.rag.embedder as embedder_module
         import eval_harness.stubs.rag.generator as generator_module
         from eval_harness.stubs.rag.chromadb_query import query
-
-        importlib.reload(embedder_module)
-        importlib.reload(generator_module)
 
         # Create session_id for grouping
         timestamp = time.strftime("%Y%m%d_%H%M%S")
