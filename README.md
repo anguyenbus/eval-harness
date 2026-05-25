@@ -297,7 +297,7 @@ uv run eval-replay --candidate-spec configs/candidates/stub-zvec-8082.yaml \
 **What happens**:
 1. Queries Phoenix for baseline spans (loads stored scores)
 2. Runs candidate service via HTTP:
-   - `POST http://localhost:8082/query` (Zvec) or `http://localhost:8081/query` (ChromaDB)
+   - `POST http://localhost:8082/query` (Zvec backend)
    - Payload: `{"question": "...", "top_k": 5}`
    - Candidate returns `retrieved_contexts`, `response`, `timings_ms`
 3. Evaluates candidate responses with DeepEval (GPT-4o)
@@ -329,7 +329,7 @@ High-level overview with averages and statistical tests:
 
 ```json
 {
-  "candidate": "stub-chunking-256",
+  "candidate": "stub-zvec-8082",
   "baseline": "stub-local",
   "num_questions": 10,
   "averages": {
@@ -476,11 +476,10 @@ effect_size = 0.50  → Large improvement (worth deploying)
 ### 1. Start Candidate Service
 
 ```bash
-# Terminal 1: Start stub service with chunk_size=256, overlap=25
+# Terminal 1: Start stub service with chunk_size=512, overlap=150
 uv run python -m eval_harness.stubs.service \
-    --config configs/stubs/chunking-256.yaml \
-    --port 8082 \
-    --export-spans false
+    --config configs/stubs/chunking-512.yaml \
+    --port 8082
 ```
 
 **`--export-spans false`**: Critical for evaluation mode—prevents candidate from creating replay spans in Phoenix (keeps span collection clean).

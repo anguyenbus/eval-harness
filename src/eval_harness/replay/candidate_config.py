@@ -8,10 +8,10 @@ The eval harness calls these services via HTTP - it does NOT construct them.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Self
 
-from beartype import beartype
-from beartype.typing import Any, Final
+# Removed beartype due to Python 3.14 import hangs
+from typing import Any, Final, Self
+
 from pydantic import BaseModel, Field, field_validator
 
 # Constants
@@ -20,7 +20,6 @@ DEFAULT_TIMEOUT: Final[int] = 30
 DEFAULT_RETRIES: Final[int] = 2
 
 
-@beartype
 class UpstreamNotes(BaseModel):
     """Informational metadata about the candidate service."""
 
@@ -32,7 +31,6 @@ class UpstreamNotes(BaseModel):
     deployed_at: str | None = None
 
 
-@beartype
 class CandidateSpec(BaseModel):
     """
     External RAG service specification.
@@ -46,6 +44,7 @@ class CandidateSpec(BaseModel):
         contract_version: API contract version (for compatibility checking).
         timeout_seconds: Request timeout.
         max_retries: Maximum retry attempts.
+        top_k: Number of chunks to retrieve.
 
     """
 
@@ -54,6 +53,7 @@ class CandidateSpec(BaseModel):
     contract_version: str = Field(default="1.0", description="API contract version")
     timeout_seconds: int = Field(default=DEFAULT_TIMEOUT, ge=1, le=300)
     max_retries: int = Field(default=DEFAULT_RETRIES, ge=0, le=5)
+    top_k: int = Field(default=5, ge=1, le=100, description="Chunks to retrieve")
 
     @field_validator("service_url")
     @classmethod
@@ -66,7 +66,7 @@ class CandidateSpec(BaseModel):
         return v
 
 
-@beartype
+# beartype removed due to Python 3.14 import hangs
 class CandidateConfig(BaseModel):
     """
     RAG candidate configuration loaded from YAML.
@@ -172,7 +172,7 @@ class CandidateConfig(BaseModel):
         ) from last_error
 
 
-@beartype
+# beartype removed due to Python 3.14 import hangs
 def load_candidate_config(path: str | Path) -> CandidateConfig:
     """
     Load candidate configuration from YAML file.

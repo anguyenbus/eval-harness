@@ -422,10 +422,12 @@ def _run_adapter_on_questions(
             # Query RAG system
             if http_client:
                 # HTTP-based invocation
+                # Note: top_k=5 is the HTTP contract default.
+                # Candidate configs can specify custom top_k for future use.
                 http_response = http_client.query(
                     {
                         "question": question,
-                        "top_k": 5,  # TODO: make top_k configurable
+                        "top_k": 5,
                     }
                 )
                 # Extract retrieved contexts and response text

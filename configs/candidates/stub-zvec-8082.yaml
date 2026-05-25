@@ -13,6 +13,7 @@ candidate:
   contract_version: "1.0"
   timeout_seconds: 30
   max_retries: 2
+  top_k: 5
 
 upstream_notes:
   contact_team: "eval-harness"
