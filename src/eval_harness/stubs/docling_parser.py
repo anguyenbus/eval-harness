@@ -46,9 +46,9 @@ except ImportError:
 
 
 # Map docling labels to our schema types
-# Schema allows: heading, paragraph, list, list_item, table, figure, caption,
+# Schema allows: heading, paragraph, list, list, table, figure, caption,
 #                footnote, header, footer, page_number, code_block, equation
-DOCLING_LABEL_MAP = {
+DOCLING_LABEL_MAP: dict = {} if not DOCLING_AVAILABLE else {
     DocItemLabel.TITLE: "heading",
     DocItemLabel.DOCUMENT_INDEX: "heading",
     DocItemLabel.SECTION_HEADER: "heading",
@@ -56,14 +56,13 @@ DOCLING_LABEL_MAP = {
     DocItemLabel.TABLE: "table",
     DocItemLabel.PICTURE: "figure",
     DocItemLabel.FORMULA: "equation",
-    DocItemLabel.TEXT: "paragraph",  # Map generic text to paragraph
+    DocItemLabel.TEXT: "paragraph",
     DocItemLabel.LIST_ITEM: "list_item",
-    DocItemLabel.CODE: "code_block",  # Map code to code_block
+    DocItemLabel.CODE: "code_block",
     DocItemLabel.CAPTION: "caption",
     DocItemLabel.PAGE_HEADER: "header",
     DocItemLabel.PAGE_FOOTER: "footer",
     DocItemLabel.FOOTNOTE: "footnote",
-    # Skip or map to paragraph: CHECKBOX, REFERENCE
     DocItemLabel.CHECKBOX_UNSELECTED: "paragraph",
     DocItemLabel.CHECKBOX_SELECTED: "paragraph",
     DocItemLabel.REFERENCE: "paragraph",

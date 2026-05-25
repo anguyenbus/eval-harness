@@ -80,7 +80,7 @@ class TestCLIIntegration:
 
     def test_corpus_dir_passed_to_query(self):
         """Test corpus_dir is passed correctly to ChromaDB query."""
-        corpus_dir = Path("/test/corpus")
+        Path("/test/corpus")
 
         with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-key"}):
             adapter = get_rag("stub")

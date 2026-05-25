@@ -80,7 +80,7 @@ class TestDeepEvalEvaluator:
         """Test that DeepEvalEvaluator initializes with all 4 metric instances."""
         monkeypatch.setenv("OPENAI_API_KEY", "test-key")
 
-        evaluator = DeepEvalEvaluator(llm_provider="openai", judge_model="gpt-4o")
+        evaluator = DeepEvalEvaluator(llm_provider="openai", judge_model="gpt-4o-mini")
 
         assert evaluator is not None
         assert evaluator._metrics is not None
@@ -94,7 +94,7 @@ class TestDeepEvalEvaluator:
         monkeypatch.setenv("OPENAI_API_KEY", "test-key")
 
         evaluator = DeepEvalEvaluator(
-            llm_provider="openai", judge_model="gpt-4o", max_concurrent=20
+            llm_provider="openai", judge_model="gpt-4o-mini", max_concurrent=20
         )
 
         assert evaluator._max_concurrent == 20
@@ -106,7 +106,7 @@ class TestDeepEvalEvaluator:
         mock_embedder = MagicMock()
 
         evaluator = DeepEvalEvaluator(
-            llm_provider="openai", judge_model="gpt-4o", embedder=mock_embedder
+            llm_provider="openai", judge_model="gpt-4o-mini", embedder=mock_embedder
         )
 
         assert evaluator._embedder is mock_embedder
@@ -115,7 +115,7 @@ class TestDeepEvalEvaluator:
         """Test that compute_metrics returns expected dictionary structure."""
         monkeypatch.setenv("OPENAI_API_KEY", "test-key")
 
-        evaluator = DeepEvalEvaluator(llm_provider="openai", judge_model="gpt-4o")
+        evaluator = DeepEvalEvaluator(llm_provider="openai", judge_model="gpt-4o-mini")
 
         rag_output = {
             "query": {"text": "Question?"},
@@ -150,7 +150,7 @@ class TestDeepEvalEvaluator:
         """Test that compute_metrics returns 0.0 on metric failure."""
         monkeypatch.setenv("OPENAI_API_KEY", "test-key")
 
-        evaluator = DeepEvalEvaluator(llm_provider="openai", judge_model="gpt-4o")
+        evaluator = DeepEvalEvaluator(llm_provider="openai", judge_model="gpt-4o-mini")
 
         rag_output = {
             "query": {"text": "Question?"},
@@ -181,7 +181,7 @@ class TestDeepEvalEvaluator:
         """Test that compute_metrics_with_timing includes timing info."""
         monkeypatch.setenv("OPENAI_API_KEY", "test-key")
 
-        evaluator = DeepEvalEvaluator(llm_provider="openai", judge_model="gpt-4o")
+        evaluator = DeepEvalEvaluator(llm_provider="openai", judge_model="gpt-4o-mini")
 
         rag_output = {
             "query": {"text": "Question?"},
@@ -214,7 +214,7 @@ class TestDeepEvalEvaluator:
         """Test that __slots__ prevents dynamic attribute creation."""
         monkeypatch.setenv("OPENAI_API_KEY", "test-key")
 
-        evaluator = DeepEvalEvaluator(llm_provider="openai", judge_model="gpt-4o")
+        evaluator = DeepEvalEvaluator(llm_provider="openai", judge_model="gpt-4o-mini")
 
         # Attempt to set a non-slotted attribute should raise AttributeError
         with pytest.raises(AttributeError):
@@ -224,7 +224,7 @@ class TestDeepEvalEvaluator:
         """Test that compute_metrics_with_reasoning returns scores and reasoning."""
         monkeypatch.setenv("OPENAI_API_KEY", "test-key")
 
-        evaluator = DeepEvalEvaluator(llm_provider="openai", judge_model="gpt-4o")
+        evaluator = DeepEvalEvaluator(llm_provider="openai", judge_model="gpt-4o-mini")
 
         rag_output = {
             "query": {"text": "Question?"},
@@ -298,7 +298,7 @@ class TestDeepEvalEvaluator:
         """Test that _extract_verdicts returns empty list when no verdicts."""
         monkeypatch.setenv("OPENAI_API_KEY", "test-key")
 
-        evaluator = DeepEvalEvaluator(llm_provider="openai", judge_model="gpt-4o")
+        evaluator = DeepEvalEvaluator(llm_provider="openai", judge_model="gpt-4o-mini")
 
         # Mock metric with no verdicts attribute
         mock_metric = MagicMock(spec=[])
@@ -312,7 +312,7 @@ class TestDeepEvalEvaluator:
         """Test that _extract_verdicts handles model_dump failure gracefully."""
         monkeypatch.setenv("OPENAI_API_KEY", "test-key")
 
-        evaluator = DeepEvalEvaluator(llm_provider="openai", judge_model="gpt-4o")
+        evaluator = DeepEvalEvaluator(llm_provider="openai", judge_model="gpt-4o-mini")
 
         # Create mock verdict that fails model_dump
         mock_verdict = MagicMock()
@@ -331,7 +331,7 @@ class TestDeepEvalEvaluator:
         """Test that _extract_claims_truths returns empty dict when no data."""
         monkeypatch.setenv("OPENAI_API_KEY", "test-key")
 
-        evaluator = DeepEvalEvaluator(llm_provider="openai", judge_model="gpt-4o")
+        evaluator = DeepEvalEvaluator(llm_provider="openai", judge_model="gpt-4o-mini")
 
         mock_metric = MagicMock(spec=[])
         mock_metric.claims = None

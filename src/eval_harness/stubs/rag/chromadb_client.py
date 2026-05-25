@@ -10,7 +10,6 @@ lifecycle, and embedding function configuration.
 from __future__ import annotations
 
 import chromadb
-from beartype import beartype
 from chromadb.utils import embedding_functions
 from rich.console import Console
 
@@ -20,7 +19,6 @@ from eval_harness.stubs.rag.exceptions import ChromaDBInitError, CollectionNotFo
 console = Console()
 
 
-@beartype
 class ChromaDBManager:
     """
     Manager for ChromaDB client and collection operations.

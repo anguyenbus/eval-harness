@@ -1,6 +1,6 @@
 """Tests for DeepEval async batch evaluation."""
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -19,7 +19,7 @@ class TestAsyncBatchEvaluation:
         monkeypatch.setenv("SSL_CERT_FILE", "")
 
         evaluator = DeepEvalEvaluator(
-            llm_provider="openai", judge_model="gpt-4o", max_concurrent=2
+            llm_provider="openai", judge_model="gpt-4o-mini", max_concurrent=2
         )
 
         # Mock metric.measure() to avoid actual API calls
@@ -61,7 +61,7 @@ class TestAsyncBatchEvaluation:
         monkeypatch.setenv("SSL_CERT_FILE", "")
 
         evaluator = DeepEvalEvaluator(
-            llm_provider="openai", judge_model="gpt-4o", max_concurrent=3
+            llm_provider="openai", judge_model="gpt-4o-mini", max_concurrent=3
         )
 
         # Create distinct queries to track order
@@ -102,7 +102,7 @@ class TestAsyncBatchEvaluation:
                         # Check order is maintained
                         assert len(results) == 3
                         # All should have metric keys
-                        for i, result in enumerate(results):
+                        for _i, result in enumerate(results):
                             assert "faithfulness" in result
                             assert "context_precision" in result
                             assert "context_recall" in result
@@ -117,13 +117,13 @@ class TestAsyncBatchEvaluation:
         # Use low max_concurrent to test semaphore
         max_concurrent = 2
         evaluator = DeepEvalEvaluator(
-            llm_provider="openai", judge_model="gpt-4o", max_concurrent=max_concurrent
+            llm_provider="openai", judge_model="gpt-4o-mini", max_concurrent=max_concurrent
         )
 
         # Track concurrent executions
         concurrent_count = 0
         max_concurrent_seen = 0
-        lock = MagicMock()
+        MagicMock()
 
         def increment_concurrent():
             nonlocal concurrent_count, max_concurrent_seen
@@ -136,7 +136,7 @@ class TestAsyncBatchEvaluation:
             concurrent_count -= 1
 
         # Mock metric.measure() to track concurrency
-        original_measure = evaluator._metrics["faithfulness"].measure
+        evaluator._metrics["faithfulness"].measure
 
         def mock_measure(test_case):
             increment_concurrent()
@@ -175,7 +175,7 @@ class TestAsyncBatchEvaluation:
         monkeypatch.setenv("SSL_CERT_FILE", "")
 
         evaluator = DeepEvalEvaluator(
-            llm_provider="openai", judge_model="gpt-4o", max_concurrent=3
+            llm_provider="openai", judge_model="gpt-4o-mini", max_concurrent=3
         )
 
         rag_outputs = [

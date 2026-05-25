@@ -9,14 +9,13 @@ from __future__ import annotations
 
 import asyncio
 import time
-from typing import Any, Final
 
 from beartype import beartype
-from beartype.typing import Dict, List
+from beartype.typing import Any, Dict, Final, List
 
 # Constants
 DEFAULT_LLM_PROVIDER: Final[str] = "openai"
-DEFAULT_JUDGE_MODEL: Final[str] = "gpt-4o"
+DEFAULT_JUDGE_MODEL: Final[str] = "gpt-4o-mini"
 DEFAULT_TEMPERATURE: Final[float] = 0.0
 DEFAULT_MAX_CONCURRENT: Final[int] = 10
 
@@ -94,7 +93,9 @@ class DeepEvalEvaluator:
         _embedder: Optional shared embedder instance.
 
     Example:
-        >>> evaluator = DeepEvalEvaluator(llm_provider="openai", judge_model="gpt-4o")
+        >>> evaluator = DeepEvalEvaluator(
+        ...     llm_provider="openai", judge_model="gpt-4o-mini"
+        ... )
         >>> scores = evaluator.compute_metrics(rag_output, reference_answer)
         >>> print(scores["faithfulness"])
 
@@ -122,7 +123,7 @@ class DeepEvalEvaluator:
 
         Args:
             llm_provider: LLM provider ("openai" or "bedrock"). Default: "openai".
-            judge_model: Judge model name. Default: gpt-4o.
+            judge_model: Judge model name. Default: gpt-4o-mini.
             temperature: Sampling temperature. Default: 0.0.
             max_concurrent: Maximum concurrent evaluations. Default: 10.
             embedder: Optional shared embedder instance. If provided, used for
@@ -358,9 +359,9 @@ class DeepEvalEvaluator:
             try:
                 verdict_dict = v.model_dump() if hasattr(v, "model_dump") else dict(v)
                 extracted.append(verdict_dict)
-            except Exception:
+            except (AttributeError, TypeError) as e:
                 # Fallback to string representation if model_dump fails
-                extracted.append({"verdict": str(v)})
+                extracted.append({"verdict": str(v), "error": str(e)})
 
         return extracted
 
@@ -386,8 +387,9 @@ class DeepEvalEvaluator:
                         i.model_dump() if hasattr(i, "model_dump") else dict(i)
                         for i in items
                     ]
-                except Exception:
-                    result[attr] = [{"text": str(i)} for i in items]
+                except (AttributeError, TypeError) as e:
+                    # Fallback to string representation on error
+                    result[attr] = [{"text": str(i), "error": str(e)} for i in items]
 
         return result
 
@@ -475,7 +477,13 @@ class DeepEvalEvaluator:
             except Exception as e:
                 import sys
 
+                # Debug: print the LLM response to see what went wrong
                 print(f"[ERROR] faithfulness failed: {e}", file=sys.stderr)
+                # Try to get the raw response for debugging
+                if hasattr(metric, "_llm"):
+                    print(f"[DEBUG] LLM provider: {metric._llm}", file=sys.stderr)
+                if hasattr(metric, "evaluation_model"):
+                    print(f"[DEBUG] Eval model: {metric.evaluation_model}", file=sys.stderr)
                 scores["faithfulness"] = 0.0
                 reasoning["faithfulness"] = {"reason": f"ERROR: {e}", "verdicts": []}
 

@@ -10,10 +10,23 @@ from __future__ import annotations
 
 from typing import Any
 
-from beartype import beartype
+# Lazy tracer import to avoid circular dependency
+_tracer = None
 
 
-@beartype
+def _get_tracer():
+    """Get global tracer instance for span emission."""
+    global _tracer
+    if _tracer is None:
+        try:
+            from eval_harness.stubs.span_generator.tracer import setup_tracer
+
+            _, _tracer = setup_tracer()
+        except (ImportError, Exception):
+            pass  # Tracing not available
+    return _tracer
+
+
 class SemanticRetriever:
     """
     Semantic retriever for ChromaDB collections.
@@ -74,6 +87,52 @@ class SemanticRetriever:
         Raises:
             EmbeddingError: If query embedding fails.
             ValueError: If top_k is less than 1.
+
+        """
+        tracer = _get_tracer()
+
+        if tracer is None:
+            return self._retrieve_internal(query, top_k)
+
+        from openinference.semconv.trace import OpenInferenceSpanKindValues
+
+        RETRIEVER = OpenInferenceSpanKindValues.RETRIEVER
+
+        with tracer.start_as_current_span(
+            "chromadb.query", openinference_span_kind=RETRIEVER
+        ) as span:
+            # Set required OpenInference attributes
+            span.set_attribute("input.value", query)
+
+            # Perform retrieval
+            chunks = self._retrieve_internal(query, top_k)
+
+            # Set retrieval document attributes
+            for i, chunk in enumerate(chunks):
+                span.set_attribute(
+                    f"retrieval.documents.{i}.document.id", chunk.get("doc_id", "")
+                )
+                span.set_attribute(
+                    f"retrieval.documents.{i}.document.content",
+                    chunk.get("text", ""),
+                )
+                span.set_attribute(
+                    f"retrieval.documents.{i}.document.score",
+                    float(chunk.get("score", 0.0)),
+                )
+
+            return chunks
+
+    def _retrieve_internal(self, query: str, top_k: int) -> list[dict[str, Any]]:
+        """
+        Internal retrieval implementation without span emission.
+
+        Args:
+            query: Query text to search for.
+            top_k: Number of chunks to retrieve.
+
+        Returns:
+            List of retrieved chunk dictionaries.
 
         """
         if top_k < 1:

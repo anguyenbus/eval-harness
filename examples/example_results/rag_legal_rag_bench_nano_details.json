@@ -5,7 +5,7 @@
   "total_queries": 10,
   "evaluation_framework": "deepeval",
   "framework_version": "4.0.3",
-  "judge_model": "gpt-4o",
+  "judge_model": "gpt-4o-mini",
   "queries": [
     {
       "query_id": 1,
