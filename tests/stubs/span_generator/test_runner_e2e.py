@@ -102,7 +102,7 @@ class TestRunnerEndToEnd:
             "eval_harness.stubs.span_generator.runner.setup_tracer"
         ) as mock_setup:
             mock_tracer = MagicMock()
-            mock_span = MagicMock()
+            MagicMock()
             mock_tracer.start_as_current_span.return_value.__enter__.side_effect = (
                 Exception("Test error")
             )

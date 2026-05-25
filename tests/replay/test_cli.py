@@ -87,7 +87,7 @@ class TestGenerateSpansCli:
                         successes=5, failures=0, run_id="test-run-id"
                     )
 
-                    result = runner.invoke(
+                    runner.invoke(
                         generate_spans_main, ["--limit", "5", "--seed", "42"]
                     )
 

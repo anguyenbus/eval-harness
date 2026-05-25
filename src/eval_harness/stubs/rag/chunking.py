@@ -10,11 +10,8 @@ from __future__ import annotations
 
 from typing import Protocol, runtime_checkable
 
-from beartype import beartype
-
 
 @runtime_checkable
-@beartype
 class ChunkingStrategy(Protocol):
     """
     Protocol for text chunking strategies.
@@ -44,7 +41,6 @@ class ChunkingStrategy(Protocol):
         ...
 
 
-@beartype
 class ConfigurableChunker:
     """
     Configurable fixed-size text chunker for document processing.
@@ -152,7 +148,6 @@ class ConfigurableChunker:
 
 
 # Refactored FixedChunker to use ConfigurableChunker internally
-@beartype
 class FixedChunker:
     """
     Fixed-size text chunker for backward compatibility.

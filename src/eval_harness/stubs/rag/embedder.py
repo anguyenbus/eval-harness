@@ -8,12 +8,14 @@ class which generates embeddings using the SentenceTransformers library.
 
 from __future__ import annotations
 
+import os
 from typing import Final
-
-from beartype import beartype
 
 from eval_harness.stubs.rag.chromadb_config import EMBEDDING_DIM, EMBEDDING_MODEL
 from eval_harness.stubs.rag.exceptions import EmbeddingError
+
+# Force CPU-only mode to avoid CUDA compatibility issues
+os.environ["CUDA_VISIBLE_DEVICES"] = ""
 
 # Lazy tracer import to avoid circular dependency
 _tracer = None
@@ -33,7 +35,6 @@ def _get_tracer():
     return _tracer
 
 
-@beartype
 class SentenceTransformersEmbedder:
     """
     SentenceTransformers embedding generator.
@@ -184,3 +185,31 @@ class SentenceTransformersEmbedder:
 
         embeddings = self.embed([text])
         return embeddings[0]
+
+    def embed_batch(self, texts: list[str]) -> list[list[float]]:
+        """
+        Generate embeddings for a batch of texts (optimized for Zvec/FAISS).
+
+        Args:
+            texts: List of text strings to embed.
+
+        Returns:
+            List of embedding vectors.
+
+        """
+        return self._embed(texts)
+
+    def embed_query(self, question: str) -> list[float]:
+        """
+        Generate embedding for a query question.
+
+        Args:
+            question: Query text to embed.
+
+        Returns:
+            Embedding vector as a list of floats.
+
+        """
+        if not question:
+            raise EmbeddingError("Cannot embed empty text")
+        return self._embed([question])[0]

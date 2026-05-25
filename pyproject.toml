@@ -52,6 +52,7 @@ replay = [
     "fastapi>=0.100.0",
     "uvicorn>=0.23.0",
     "click>=8.0.0",
+    "faiss-cpu",
 ]
 bedrock = [
     "boto3>=1.0.0",

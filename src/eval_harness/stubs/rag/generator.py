@@ -14,8 +14,6 @@ import time
 from pathlib import Path
 from typing import Any, Final
 
-from beartype import beartype
-
 # Load .env file if it exists
 _env_path = Path.cwd() / ".env"
 if _env_path.exists():
@@ -34,7 +32,7 @@ def _get_tracer():
         try:
             from opentelemetry.trace import get_tracer
 
-            # Use globally registered tracer (set_global_tracer_provider=True in setup_tracer)
+            # Use globally registered tracer via set_global_tracer_provider=True
             _tracer = get_tracer(__name__)
         except (ImportError, Exception):
             pass  # Tracing not available
@@ -46,7 +44,6 @@ def _is_bedrock_model(model: str) -> bool:
     return model.startswith(("anthropic.", "amazon.", "meta.", "mistral.", "cohere."))
 
 
-@beartype
 class LLMGenerator:
     """
     LLM-powered answer generator for RAG.
@@ -139,7 +136,15 @@ class LLMGenerator:
         """
         tracer = _get_tracer()
 
-        if tracer is None:
+        # Check if tracer is usable (not NoOpTracer)
+        # NoOpTracer doesn't support OpenInference span kinds
+        is_noop_tracer = (
+            tracer is not None
+            and hasattr(tracer, "real_tracer")
+            and tracer.real_tracer is None
+        )
+
+        if tracer is None or is_noop_tracer:
             if self._provider == "openai":
                 return self._generate_openai(question, retrieved_chunks)
             else:
@@ -149,10 +154,17 @@ class LLMGenerator:
 
         LLM = OpenInferenceSpanKindValues.LLM
 
-        with tracer.start_as_current_span(
-            "bedrock.generate" if self._provider == "bedrock" else "openai.generate",
-            openinference_span_kind=LLM,
-        ) as span:
+        # Try using tracer, fall back if it fails
+        try:
+            span_name = (
+                "bedrock.generate" if self._provider == "bedrock" else "openai.generate"
+            )
+            span_context = tracer.start_as_current_span(
+                span_name,
+                openinference_span_kind=LLM,
+            )
+            span = span_context.__enter__()
+
             # Set model name
             span.set_attribute(self.MODEL_NAME_ATTR, self._model)
 
@@ -188,7 +200,16 @@ class LLMGenerator:
             # Set token count (0 since we don't track it)
             span.set_attribute(self.TOKEN_COUNT_ATTR, 0)
 
+            span_context.__exit__(None, None, None)
             return result
+
+        except TypeError:
+            # Tracer doesn't support OpenInference params (NoOpTracer)
+            # Fall back to direct generation
+            if self._provider == "openai":
+                return self._generate_openai(question, retrieved_chunks)
+            else:
+                return self._generate_bedrock(question, retrieved_chunks)
 
     def _generate_openai(
         self, question: str, retrieved_chunks: list[dict[str, Any]]

@@ -11,10 +11,7 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
-from beartype import beartype
 
-
-@beartype
 class PhoenixTracer:
     """
     Phoenix Arize tracer for RAG pipeline observability.

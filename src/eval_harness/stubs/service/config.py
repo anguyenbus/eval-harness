@@ -9,15 +9,12 @@ embedding model, port, corpus path, etc.).
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Self
+from typing import Final, Self
 
-from beartype import beartype
-from beartype.typing import Final
 from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
-    FieldValidationInfo,
     field_validator,
 )
 
@@ -31,7 +28,6 @@ MAX_PORT: Final[int] = 65535
 DEFAULT_PROJECT_NAME: Final[str] = "case-assistant-synthetic"
 
 
-@beartype
 class StubConfig(BaseModel):
     """
     Boot-time configuration for stub RAG service.
@@ -90,11 +86,15 @@ class StubConfig(BaseModel):
         default=True,
         description="Whether to export OpenInference spans to Phoenix"
     )
+    retrieval_backend: str = Field(
+        default="chromadb",
+        description="Retrieval backend: 'chromadb', 'faiss', or 'zvec'"
+    )
 
     @field_validator("chunk_overlap")
     @classmethod
     def validate_overlap_less_than_chunk_size(
-        cls, v: int, info: FieldValidationInfo
+        cls, v: int, info: object
     ) -> int:
         """Validate that chunk_overlap is strictly less than chunk_size."""
         if "chunk_size" in info.data and v >= info.data["chunk_size"]:

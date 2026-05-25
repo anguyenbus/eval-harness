@@ -39,6 +39,7 @@ from eval_harness.stubs.span_generator.span_schema import (
     METADATA_KEY_SYNTHETIC_RUN_ID,
     METADATA_KEY_TENANT_ID_HASHED,
     OUTPUT_VALUE,
+    RETRIEVAL_DOCUMENTS,
     SESSION_ID,
     SOURCE_DATASET,
     SOURCE_DATASET_VALUE,
@@ -150,8 +151,9 @@ def run_generator(
 
     try:
         # Import stub pipeline modules
-        # NOTE: No reload needed - tracer is globally registered via set_global_tracer_provider=True
-        # Modules use trace.get_tracer() to access the same tracer instance
+        # NOTE: No reload needed - tracer is globally registered via
+        # set_global_tracer_provider=True. Modules use trace.get_tracer()
+        # to access the same tracer instance.
         from eval_harness.stubs.rag.chromadb_query import query
 
         # Create session_id for grouping
@@ -207,6 +209,24 @@ def run_generator(
                     # Update output with actual answer
                     answer_text = rag_output.get("answer", {}).get("text", "")
                     span.set_attribute(OUTPUT_VALUE, answer_text)
+
+                    # Store retrieved documents for chunk comparison in
+                    # replay evaluation
+                    retrieved_chunks = rag_output.get("retrieved_chunks", [])
+                    retrieval_documents = []
+                    for i, chunk in enumerate(retrieved_chunks):
+                        retrieval_documents.append(
+                            {
+                                "document": {
+                                    "id": chunk.get("id", f"doc_{i}"),
+                                    "content": chunk.get("text", ""),
+                                    "score": chunk.get("score", 0.0),
+                                }
+                            }
+                        )
+                    span.set_attribute(
+                        RETRIEVAL_DOCUMENTS, json.dumps(retrieval_documents)
+                    )
 
                     # Store latency metrics from RAG pipeline
                     timings = rag_output.get("timings_ms", {})

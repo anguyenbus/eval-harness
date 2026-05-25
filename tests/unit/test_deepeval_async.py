@@ -102,7 +102,7 @@ class TestAsyncBatchEvaluation:
                         # Check order is maintained
                         assert len(results) == 3
                         # All should have metric keys
-                        for i, result in enumerate(results):
+                        for _i, result in enumerate(results):
                             assert "faithfulness" in result
                             assert "context_precision" in result
                             assert "context_recall" in result
@@ -123,7 +123,7 @@ class TestAsyncBatchEvaluation:
         # Track concurrent executions
         concurrent_count = 0
         max_concurrent_seen = 0
-        lock = MagicMock()
+        MagicMock()
 
         def increment_concurrent():
             nonlocal concurrent_count, max_concurrent_seen
@@ -136,7 +136,7 @@ class TestAsyncBatchEvaluation:
             concurrent_count -= 1
 
         # Mock metric.measure() to track concurrency
-        original_measure = evaluator._metrics["faithfulness"].measure
+        evaluator._metrics["faithfulness"].measure
 
         def mock_measure(test_case):
             increment_concurrent()

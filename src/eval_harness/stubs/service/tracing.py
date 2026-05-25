@@ -7,16 +7,12 @@ for HTTP requests to the stub service.
 
 from __future__ import annotations
 
-from typing import Any
-
-from beartype import beartype
-from beartype.typing import Final
+from typing import Any, Final
 
 # Constants
 DEFAULT_TRACER_NAME: Final[str] = "eval-harness.stub-service"
 
 
-@beartype
 def extract_trace_context(headers: dict[str, str]) -> dict[str, str] | None:
     """
     Extract W3C trace context from HTTP headers.
@@ -41,7 +37,6 @@ def extract_trace_context(headers: dict[str, str]) -> dict[str, str] | None:
     return trace_context if trace_context else None
 
 
-@beartype
 def setup_phoenix_tracer(
     phoenix_endpoint: str | None,
     project_name: str = "case-assistant-synthetic",

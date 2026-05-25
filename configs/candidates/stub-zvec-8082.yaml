@@ -1,0 +1,22 @@
+# Candidate spec for Zvec-backed stub service (port 8082)
+#
+# SERVICE: Zvec RAG backend with chunk_size=512, overlap=150
+# PORT: 8082
+# EVALUATION MODE: Runs with --export-spans=false
+
+name: stub-zvec-8082
+description: Zvec-backed RAG service with chunk_size=512, overlap=150 (port 8082)
+
+candidate:
+  service_url: http://localhost:8082/query
+  service_version: "1.0.0"
+  contract_version: "1.0"
+  timeout_seconds: 30
+  max_retries: 2
+
+upstream_notes:
+  contact_team: "eval-harness"
+  contact_slack: "#eval-harness"
+  design_doc: "docs/http-contract.md"
+  backend: "zvec"
+  port: 8082

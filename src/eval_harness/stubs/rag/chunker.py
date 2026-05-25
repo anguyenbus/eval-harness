@@ -8,12 +8,9 @@ which splits documents into fixed-size chunks for embedding and retrieval.
 
 from __future__ import annotations
 
-from beartype import beartype
-
 from eval_harness.stubs.rag.chromadb_config import CHUNK_OVERLAP, CHUNK_SIZE
 
 
-@beartype
 class FixedChunker:
     """
     Fixed-size text chunker for document processing.
@@ -39,10 +36,10 @@ class FixedChunker:
 
     __slots__ = ("_chunk_size", "_chunk_overlap")
 
-    def __init__(self) -> None:
-        """Initialize the fixed chunker with configured size and overlap."""
-        self._chunk_size: int = CHUNK_SIZE
-        self._chunk_overlap: int = CHUNK_OVERLAP
+    def __init__(self, chunk_size: int = CHUNK_SIZE, chunk_overlap: int = CHUNK_OVERLAP) -> None:
+        """Initialize the fixed chunker with size and overlap."""
+        self._chunk_size: int = chunk_size
+        self._chunk_overlap: int = chunk_overlap
 
     def chunk(self, doc_id: str, text: str) -> list[dict]:
         """
@@ -87,11 +84,12 @@ class FixedChunker:
             chunks.append(chunk)
 
             # Move to next chunk (accounting for overlap)
+            prev_start = start
             start = end - self._chunk_overlap
             chunk_idx += 1
 
-            # Avoid infinite loop when overlap equals chunk size
-            if start == end and start < text_length:
-                start = end
+            # Avoid infinite loop: if we haven't moved forward, we're done
+            if start <= prev_start:
+                break
 
         return chunks

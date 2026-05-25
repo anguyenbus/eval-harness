@@ -197,122 +197,341 @@ All metrics use LLM-as-a-judge (gpt-4o-mini) for evaluation. See [docs/legal-rag
 
 ## Replay Evaluation
 
-Generate synthetic OpenInference spans, then compare candidate RAG configurations against production baselines using statistical testing.
+**Purpose**: Compare RAG system configurations using cached baseline scores and statistical testing.
 
-### Features
+### Why Replay Evaluation Matters
 
-- **Synthetic Span Generation**: Generate realistic spans from stub RAG pipeline
-- **Production Baseline**: Use stored scores from production spans (no re-evaluation)
-- **Statistical Comparison**: Paired Wilcoxon test + Cliff's Delta effect size
-- **Multi-Metric Evaluation**: Faithfulness, context precision, context recall, answer relevancy, latency
-- **Chunking Configuration**: Test different chunk sizes/overlaps via naming convention
-- **Multiple Output Formats**: CSV summary, JSON summary, JSON per-question details
+**Problem**: RAG systems have many tuning knobs (chunk size, overlap, embedding model, top-k). Testing each configuration requires:
+1. Running queries against your vector store
+2. Computing LLM-as-judge metrics ($$$)
+3. Comparing results to determine if the change helped
 
-### Installation
+**Replay Solution**: Generate baseline spans **once**, store all metrics in Phoenix, then compare any number of candidates against that baseline without re-running the expensive LLM judge.
+
+**Benefits**:
+- **Cost**: Reuse stored metrics (no repeated GPT-4 API calls)
+- **Speed**: Baseline scores loaded from Phoenix (instant vs minutes)
+- **Consistency**: Same baseline for all comparisons
+- **Statistical rigor**: Paired Wilcoxon test + effect sizes
+
+### Available Backends
+
+| Backend | Port | Chunk Size | RAM Usage | Speed | Notes |
+|---------|------|------------|-----------|-------|-------|
+| **Zvec** | 8082 | 512 | Low (in-process) | Fast | Primary backend. SQLite-like vector DB. |
+
+**ChromaDB removed**: Too RAM-heavy for evaluation environment. Zvec recommended for all tests.
+
+---
+
+## Step 1: Generate Baseline Spans
+
+**Goal**: Create pre-evaluated question set with stored metrics in Phoenix.
 
 ```bash
-uv sync --all-extras --replay
+# Terminal 1: Start Phoenix (required for span storage)
+uv run python -m phoenix.server.main serve
+
+# Terminal 2: Generate baseline spans (run once per baseline configuration)
+# CPU-only mode enforced automatically (CUDA_VISIBLE_DEVICES="")
+uv run generate-spans --limit=3
 ```
 
-### Commands
+**What happens**:
+1. Loads questions from Legal RAG Bench (or your configured dataset)
+2. Runs stub RAG pipeline: retrieval → generation
+3. Evaluates each question with DeepEval metrics (GPT-4o LLM judge)
+4. Stores everything in Phoenix as span attributes:
+   - `input.value`: Question text
+   - `output.value`: Generated answer
+   - `rag_faithfulness`: Factual consistency score (0-1)
+   - `rag_context_precision`: Retrieval signal-to-noise (0-1)
+   - `rag_context_recall`: Relevant info coverage (0-1)
+   - `rag_answer_relevancy`: Response directness (0-1)
+   - `rag_latency_total_ms`: Query time in milliseconds
+
+**What to check**:
+- Phoenix UI shows spans at `http://localhost:6006`
+- Project name: `case-assistant-synthetic`
+- Each span has `rag_faithfulness` attribute with value 0-1
+
+**No baseline spans?**
+```bash
+# Troubleshooting
+uv run eval-harness-check phoenix  # Verify connectivity
+uv run eval-harness-check config    # Verify dataset paths
+```
+
+---
+
+## Step 2: Run Candidate Evaluation
+
+**Goal**: Compare a new RAG configuration against the cached baseline.
+
+### 2a. Start Candidate Service (Terminal 2)
 
 ```bash
-# 1. Start Phoenix server
-python -m phoenix.server.main serve
-
-# 2. Verify Phoenix connectivity (recommended before running evaluations)
-export PHOENIX_ENDPOINT="http://localhost:6006"  # Or your production endpoint
-uv run eval-harness-check phoenix
-uv run eval-harness-check config  # Display resolved configuration
-
-# 3. Generate baseline spans with stored evaluation metrics
-uv run generate-spans --limit=10
-
-# 3. Run replay evaluation comparing configurations
-uv run eval-replay --candidate=stub-chunks-512-overlap-150 --baseline=stub-local --limit=10
-
-# 4. Use production baseline (no re-evaluation, faster/cheaper)
-uv run eval-replay --candidate=stub-chunks-512-overlap-150 --production-baseline --limit=10
-
-# 5. Export results (creates 3 files: CSV, summary JSON, details JSON)
-uv run eval-replay --candidate=stub-chunks-512-overlap-150 --baseline=stub-local --output results/replay_test.json
+# Start Zvec-backed RAG service (CPU-only mode enforced)
+uv run python -m eval_harness.stubs.service \
+    --config configs/stubs/chunking-512.yaml \
+    --port 8082
 ```
 
-### Why Generate Spans?
+**`--export-spans false` is set in config**: Candidate does not create replay spans in Phoenix.
 
-**Problem**: Replay evaluation needs pre-evaluated questions with known answers. Without stored baseline scores, you'd need to re-run the expensive LLM judge (gpt-4o) on every comparison.
-
-**Solution**: Generate synthetic spans once, store everything in Phoenix:
-- Questions from Legal RAG Bench (or your dataset)
-- Expected answers (ground truth)
-- Baseline scores (faithfulness, context precision, recall, relevancy)
-- Latency metrics
-
-**Data Used**:
+Verify service is healthy:
 ```bash
-# Source: Legal RAG Bench (isaacus/legal-rag-bench on HuggingFace)
-# - 100 legal reasoning questions
-# - 4,876 passage corpus
-# - Domain: Criminal law, jury procedures, evidence law
-
-# generate-spans flows:
-1. Load questions from dataset
-2. Run stub RAG pipeline (retrieval + generation)
-3. Evaluate with DeepEval metrics (gpt-4o LLM judge)
-4. Store results in Phoenix as span attributes
-5. Replay queries Phoenix for questions + stored scores
+curl http://localhost:8082/health
+# Should return: {"status": "healthy"}
 ```
 
-**Without `--production-baseline`**: Re-runs baseline adapter + re-evaluates with LLM judge (expensive).
+### 2b. Run Evaluation (Terminal 3)
 
-**With `--production-baseline`**: Uses stored scores from span attributes (fast, free).
-
-### Candidate Naming Convention
-
-Parse chunking config from candidate name:
-
-| Name | Chunk Size | Overlap |
-|------|------------|---------|
-| `stub-local` | default (512) | 0 |
-| `stub-chunks-512-overlap-150` | 512 | 150 |
-| `stub-chunks-256-overlap-50` | 256 | 50 |
-
-### Span Hierarchy
-
-Replay spans create parent CHAIN spans with same structure as synthetic spans:
-
-```
-replay_stub-chunks-512-overlap-150 (CHAIN)
-├── chromadb.query (RETRIEVER)
-│   └── embed.query (EMBEDDING)
-└── openai.generate (LLM)
+```bash
+uv run eval-replay --candidate-spec configs/candidates/stub-zvec-8082.yaml \
+    --production-baseline \
+    --limit 3 \
+    --output results/comparison.json
 ```
 
-### Output Files
+**What happens**:
+1. Queries Phoenix for baseline spans (loads stored scores)
+2. Runs candidate service via HTTP:
+   - `POST http://localhost:8082/query` (Zvec) or `http://localhost:8081/query` (ChromaDB)
+   - Payload: `{"question": "...", "top_k": 5}`
+   - Candidate returns `retrieved_contexts`, `response`, `timings_ms`
+3. Evaluates candidate responses with DeepEval (GPT-4o)
+4. Compares candidate vs baseline using paired statistical tests
 
-| File | Content |
-|------|---------|
-| `{name}_summary.json` | Averages + p-values + effect sizes |
-| `{name}_details.json` | Per-question baseline vs candidate scores |
-| `{name}.csv` | Spreadsheet-friendly metrics table |
+**What to check**:
+- Output files created with timestamps:
+  - `results/comparison_YYYYMMDD_HHMMSS_summary.json` - Averages and statistical tests
+  - `results/comparison_YYYYMMDD_HHMMSS_details.json` - Per-question scores and contexts
+  - `results/comparison_YYYYMMDD_HHMMSS.csv` - Metrics summary (spreadsheet-friendly)
+  - `results/comparison_YYYYMMDD_HHMMSS_chunks.csv` - Retrieved contexts per question
+- Console shows statistical comparison table with p-values and effect sizes
 
-### Statistical Metrics
+### 2c. Stop Service
 
-| Metric | Test | Interpretation |
-|--------|------|----------------|
-| **p-value** | Wilcoxon signed-rank | Significant if < 0.05 |
-| **effect size** | Cliff's Delta | Magnitude: negligible (<0.15), small (0.15-0.33), medium (0.33-0.47), large (>0.47) |
-| **winner** | Mean comparison | `candidate` or `baseline` |
-| **pass_fail** | Combined | p-value + directional preference |
+```bash
+# Kill the service after evaluation to free RAM
+# Ctrl+C in the service terminal, or:
+pkill -f "eval_harness.stubs.service"
+```
 
-### Documentation
+---
 
-See [docs/replay-service.md](docs/replay-service.md) for comprehensive documentation including:
-- Architecture and data flow
-- CLI usage examples
-- Span schema reference
-- Migration path to production
-- Troubleshooting guide
+## Understanding Results
+
+### Summary JSON (`{output}_summary.json`)
+
+High-level overview with averages and statistical tests:
+
+```json
+{
+  "candidate": "stub-chunking-256",
+  "baseline": "stub-local",
+  "num_questions": 10,
+  "averages": {
+    "candidate": {
+      "faithfulness": 0.85,
+      "context_precision": 0.72,
+      "latency_total_ms": 1250
+    },
+    "baseline": {
+      "faithfulness": 0.78,
+      "context_precision": 0.65,
+      "latency_total_ms": 1800
+    }
+  },
+  "statistical_tests": {
+    "faithfulness": {
+      "p_value": 0.031,
+      "effect_size": 0.45,
+      "winner": "candidate",
+      "pass_fail": true
+    }
+  }
+}
+```
+
+**What to look for**:
+- **p_value < 0.05**: Statistically significant difference
+- **effect_size**: Magnitude of difference
+  - `< 0.15`: Negligible
+  - `0.15-0.33`: Small
+  - `0.33-0.47`: Medium
+  - `> 0.47`: Large
+- **winner**: Which configuration performed better
+- **pass_fail**: Combined metric (p-value + direction)
+
+### Details JSON (`{output}_details.json`)
+
+Per-question breakdown with retrieved chunks:
+
+```json
+{
+  "questions": [
+    {
+      "question": "What is the burden of proof...",
+      "baseline": {
+        "scores": {"faithfulness": 0.9, "context_precision": 0.8},
+        "retrieved_contexts": ["...", "..."],
+        "response_text": "The prosecution bears..."
+      },
+      "candidate": {
+        "scores": {"faithfulness": 0.85, "context_precision": 0.75},
+        "retrieved_contexts": ["...", "...", "..."],
+        "response_text": "In criminal cases..."
+      }
+    }
+  ]
+}
+```
+
+**What to check**:
+- Retrieved contexts differ between baseline/candidate
+- Response quality correlates with metric scores
+- Latency differences align with expectations
+
+### CSV (`{output}.csv`)
+
+Spreadsheet format for regression tracking:
+
+```csv
+metric,candidate_avg,baseline_avg,p_value,effect_size,winner
+faithfulness,0.85,0.78,0.031,0.45,candidate
+context_precision,0.72,0.65,0.120,0.22,candidate
+```
+
+### Chunks CSV (`{output}_chunks.csv`)
+
+Retrieved contexts per question for investigating retrieval differences:
+
+```csv
+question_id,question,source,chunk_index,chunk_text,score
+q_0000,What is criminal law?,baseline,0,Criminal law is...,0.95
+q_0000,What is criminal law?,baseline,1,The burden of proof...,0.87
+q_0000,What is criminal law?,candidate,0,Criminal law defines...,0.92
+```
+
+**What to check**:
+- Different chunk sizes affect retrieval (candidate returns more/fewer chunks)
+- Chunk content overlap between baseline/candidate
+- Score distributions (higher scores = better semantic match)
+
+---
+
+## Statistical Testing Explained
+
+### Wilcoxon Signed-Rank Test
+
+**Why**: Paired test—same questions evaluated on both configurations.
+
+**Null hypothesis**: Both configurations perform identically.
+
+**p-value interpretation**:
+- `< 0.05`: Reject null—significant difference
+- `≥ 0.05`: No conclusion—difference could be noise
+
+**Example**:
+```
+p_value = 0.031  → 3.1% chance difference is from noise
+p_value = 0.450  → 45% chance difference is from noise
+```
+
+### Cliff's Delta (Effect Size)
+
+**Why**: p-values don't tell you "how much" better.
+
+**Interpretation**:
+| Range | Meaning |
+|-------|---------|
+| 0.0 - 0.147 | Negligible |
+| 0.147 - 0.33 | Small |
+| 0.33 - 0.474 | Medium |
+| > 0.474 | Large |
+
+**Example**:
+```
+effect_size = 0.15  → Small but meaningful improvement
+effect_size = 0.50  → Large improvement (worth deploying)
+```
+
+### Decision Framework
+
+| p-value | Effect Size | Action |
+|----------|-------------|--------|
+| ≥ 0.05 | Any | No conclusion—need more data |
+| < 0.05 | < 0.15 | Significant but tiny—probably not worth it |
+| < 0.05 | 0.15 - 0.33 | Small win—consider if low risk |
+| < 0.05 | > 0.33 | Clear win—deploy |
+
+---
+
+## HTTP-Based Evaluation (Recommended)
+
+**Why**: Run candidate as HTTP service, test without code changes.
+
+### 1. Start Candidate Service
+
+```bash
+# Terminal 1: Start stub service with chunk_size=256, overlap=25
+uv run python -m eval_harness.stubs.service \
+    --config configs/stubs/chunking-256.yaml \
+    --port 8082 \
+    --export-spans false
+```
+
+**`--export-spans false`**: Critical for evaluation mode—prevents candidate from creating replay spans in Phoenix (keeps span collection clean).
+
+### 2. Create Candidate Spec
+
+`configs/candidates/my-experiment.yaml`:
+```yaml
+name: my-experiment
+description: Testing chunk_size=256, overlap=25
+
+candidate:
+  service_url: http://localhost:8082/query
+  service_version: "1.0.0"
+  contract_version: "1.0"
+  timeout_seconds: 30
+  max_retries: 2
+```
+
+### 3. Run Evaluation
+
+```bash
+uv run eval-replay \
+    --candidate-spec configs/candidates/my-experiment.yaml \
+    --production-baseline \
+    --output results/my_experiment.json
+```
+
+**Benefits**:
+- Candidate can be in any language (Python, Go, Rust)
+- Test deployed services (not just local code)
+- Swap candidates without redeploying eval-harness
+
+---
+
+## Installation
+
+```bash
+# Core replay dependencies
+uv sync --extra replay
+
+# Full observability (optional)
+uv sync --all-extras
+```
+
+---
+
+## Documentation
+
+- [docs/replay-service.md](docs/replay-service.md) - Architecture and implementation details
+- [docs/http-contract.md](docs/http-contract.md) - HTTP service contract specification
 
 ## Phoenix Observability (Optional)
 

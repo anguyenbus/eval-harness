@@ -10,8 +10,6 @@ from __future__ import annotations
 
 from typing import Any
 
-from beartype import beartype
-
 # Lazy tracer import to avoid circular dependency
 _tracer = None
 
@@ -29,7 +27,6 @@ def _get_tracer():
     return _tracer
 
 
-@beartype
 class SemanticRetriever:
     """
     Semantic retriever for ChromaDB collections.

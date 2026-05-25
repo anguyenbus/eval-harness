@@ -41,7 +41,7 @@ class TestEmbedderInstrumentation:
                     mock_load.return_value = mock_model
 
                     embedder = SentenceTransformersEmbedder()
-                    result = embedder.embed(["test query"])
+                    embedder.embed(["test query"])
 
                     # Verify span was created
                     assert mock_tracer.start_as_current_span.called
@@ -96,7 +96,7 @@ class TestEmbedderInstrumentation:
                     mock_load.return_value = mock_model
 
                     embedder = SentenceTransformersEmbedder()
-                    result = embedder.embed(["test"])
+                    embedder.embed(["test"])
 
                     # Verify vector_dim attribute was set
                     assert mock_span.set_attribute.called
@@ -134,7 +134,7 @@ class TestRetrieverInstrumentation:
                 mock_embedder.embed.return_value = [[0.1, 0.2, 0.3]]
 
                 retriever = SemanticRetriever(mock_collection, mock_embedder)
-                result = retriever.retrieve("test query", top_k=2)
+                retriever.retrieve("test query", top_k=2)
 
                 # Verify span was created
                 assert mock_tracer.start_as_current_span.called
@@ -167,7 +167,7 @@ class TestRetrieverInstrumentation:
                 mock_embedder.embed.return_value = [[0.1]]
 
                 retriever = SemanticRetriever(mock_collection, mock_embedder)
-                result = retriever.retrieve("test", top_k=1)
+                retriever.retrieve("test", top_k=1)
 
                 # Verify document attributes were set
                 assert mock_span.set_attribute.called
@@ -233,7 +233,7 @@ class TestGeneratorInstrumentation:
 
                     with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
                         generator = LLMGenerator(model="gpt-4o-mini")
-                        result = generator.generate("Test question", [])
+                        generator.generate("Test question", [])
 
                         # Verify span was created
                         assert mock_tracer.start_as_current_span.called
@@ -261,7 +261,7 @@ class TestGeneratorInstrumentation:
 
                 with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
                     generator = LLMGenerator(model="gpt-4o-mini", deterministic_mode=True)
-                    result = generator.generate("Test", [])
+                    generator.generate("Test", [])
 
                     # Verify temperature=0 was used
                     call_args = mock_client.chat.completions.create.call_args

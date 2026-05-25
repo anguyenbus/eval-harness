@@ -235,16 +235,28 @@ async def _query_without_span(
         QueryResponse with retrieved contexts, response text, and timings.
 
     """
-    from eval_harness.stubs.rag.chromadb_query import query
+    # Route to appropriate backend
+    if config.retrieval_backend == "zvec":
+        from eval_harness.stubs.rag.zvec_query import query as zvec_query
 
-    # Execute RAG query directly without span creation
-    result = query(
-        question=request.question,
-        corpus_dir=config.resolved_corpus_path,
-        top_k=request.top_k,
-        chunk_size=config.chunk_size,
-        chunk_overlap=config.chunk_overlap,
-    )
+        result = zvec_query(
+            question=request.question,
+            corpus_dir=config.resolved_corpus_path,
+            top_k=request.top_k,
+            chunk_size=config.chunk_size,
+            chunk_overlap=config.chunk_overlap,
+        )
+    else:
+        # Default to ChromaDB
+        from eval_harness.stubs.rag.chromadb_query import query
+
+        result = query(
+            question=request.question,
+            corpus_dir=config.resolved_corpus_path,
+            top_k=request.top_k,
+            chunk_size=config.chunk_size,
+            chunk_overlap=config.chunk_overlap,
+        )
 
     # Extract answer and timings
     answer_text = result.get("answer", {}).get("text", "")

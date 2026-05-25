@@ -15,6 +15,7 @@ import json
 import os
 import sys
 import threading
+from datetime import datetime
 from pathlib import Path
 
 import click
@@ -227,6 +228,134 @@ def _extract_all_baseline_scores(span: dict[str, Any]) -> dict[str, float]:
     return metrics
 
 
+def _extract_retrieval_documents_from_span(
+    span: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """
+    Extract retrieval documents from span for chunks CSV output.
+
+    Args:
+        span: Span dictionary (from PhoenixClient).
+
+    Returns:
+        List of retrieved context dicts with text and score.
+
+    """
+    import json
+
+    retrieved_contexts = []
+
+    # Try multiple possible locations for retrieval data
+    # Phoenix may store this in different formats
+
+    # 1. Check attributes.retrieval.documents (flattened DataFrame format)
+    if "attributes.retrieval.documents" in span:
+        documents_data = span["attributes.retrieval.documents"]
+        if isinstance(documents_data, str):
+            try:
+                documents = json.loads(documents_data)
+            except json.JSONDecodeError:
+                documents = []
+        elif isinstance(documents_data, list):
+            documents = documents_data
+        else:
+            documents = []
+
+        for doc_entry in documents:
+            if "document" in doc_entry:
+                doc = doc_entry.get("document", {})
+            else:
+                doc = doc_entry
+            retrieved_contexts.append(
+                {
+                    "text": doc.get("content", ""),
+                    "score": doc.get("score", 0.0),
+                    "id": doc.get("id", ""),
+                }
+            )
+        return retrieved_contexts
+
+    # 2. Check attributes.retrieval (flattened key from DataFrame)
+    if "attributes.retrieval" in span:
+        retrieval_data = span["attributes.retrieval"]
+        if isinstance(retrieval_data, str):
+            try:
+                retrieval = json.loads(retrieval_data)
+            except json.JSONDecodeError:
+                retrieval = None
+        elif isinstance(retrieval_data, dict):
+            retrieval = retrieval_data
+        else:
+            retrieval = None
+
+        if retrieval:
+            documents = retrieval.get("documents", [])
+            for doc_entry in documents:
+                if "document" in doc_entry:
+                    doc = doc_entry.get("document", {})
+                else:
+                    doc = doc_entry
+                retrieved_contexts.append(
+                    {
+                        "text": doc.get("content", ""),
+                        "score": doc.get("score", 0.0),
+                        "id": doc.get("id", ""),
+                    }
+                )
+            return retrieved_contexts
+
+    # 3. Check nested attributes["retrieval"]
+    attrs = span.get("attributes", {})
+    if isinstance(attrs, dict) and "retrieval" in attrs:
+        retrieval_data = attrs["retrieval"]
+        if isinstance(retrieval_data, str):
+            try:
+                retrieval = json.loads(retrieval_data)
+            except json.JSONDecodeError:
+                retrieval = None
+        elif isinstance(retrieval_data, dict):
+            retrieval = retrieval_data
+        else:
+            retrieval = None
+
+        if retrieval:
+            documents = retrieval.get("documents", [])
+            for doc_entry in documents:
+                if "document" in doc_entry:
+                    doc = doc_entry.get("document", {})
+                else:
+                    doc = doc_entry
+                retrieved_contexts.append(
+                    {
+                        "text": doc.get("content", ""),
+                        "score": doc.get("score", 0.0),
+                        "id": doc.get("id", ""),
+                    }
+                )
+            return retrieved_contexts
+
+    # 4. Check top-level "retrieval" key (raw span format)
+    if "retrieval" in span:
+        retrieval_data = span["retrieval"]
+        if isinstance(retrieval_data, dict):
+            documents = retrieval_data.get("documents", [])
+            for doc_entry in documents:
+                if "document" in doc_entry:
+                    doc = doc_entry.get("document", {})
+                else:
+                    doc = doc_entry
+                retrieved_contexts.append(
+                    {
+                        "text": doc.get("content", ""),
+                        "score": doc.get("score", 0.0),
+                        "id": doc.get("id", ""),
+                    }
+                )
+            return retrieved_contexts
+
+    return retrieved_contexts
+
+
 def _run_adapter_on_questions(
     questions: list[str],
     adapter: RagAdapter | None,
@@ -300,7 +429,12 @@ def _run_adapter_on_questions(
                     }
                 )
                 # Extract retrieved contexts and response text
-                retrieved_contexts = http_response.get("retrieved_contexts", [])
+                # Normalize to list of dicts with text/score for chunks CSV
+                raw_contexts = http_response.get("retrieved_contexts", [])
+                retrieved_contexts = [
+                    {"text": ctx, "score": ""} if isinstance(ctx, str) else ctx
+                    for ctx in raw_contexts
+                ]
                 response_text = http_response.get("response", {}).get("text", "")
                 # Convert HTTP response to adapter output format
                 output = {
@@ -321,9 +455,10 @@ def _run_adapter_on_questions(
             else:
                 # Import-based invocation
                 output = adapter.query(question, corpus_dir)
-                # Extract from adapter output
+                # Extract from adapter output - normalize to text/score format
                 retrieved_contexts = [
-                    c.get("text", "") for c in output.get("retrieved_chunks", [])
+                    {"text": c.get("text", ""), "score": c.get("score", "")}
+                    for c in output.get("retrieved_chunks", [])
                 ]
                 response_text = output.get("answer", {}).get("text", "")
 
@@ -735,6 +870,10 @@ def main(
             "rag_latency_total_ms": "rag_latency_total_ms",
         }
 
+        # Initialize baseline_details (empty for production baseline,
+        # populated if re-running)
+        baseline_details = []
+
         # Get baseline scores (from production spans or re-run)
         if production_baseline:
             # Extract all baseline scores from span attributes (production results)
@@ -747,6 +886,15 @@ def main(
                     baseline_all_scores.append(scores)
                     if "faithfulness" in scores:
                         baseline_faithfulness.append(scores["faithfulness"])
+
+                # Extract retrieval documents for chunks CSV
+                retrieved_contexts = _extract_retrieval_documents_from_span(span)
+                baseline_details.append(
+                    {
+                        "retrieved_contexts": retrieved_contexts,
+                        "response_text": span.get("output", {}).get("value", ""),
+                    }
+                )
 
             if len(baseline_faithfulness) == 0:
                 click.echo(
@@ -990,7 +1138,11 @@ def main(
 
         # Export results if requested
         if output:
-            output.parent.mkdir(parents=True, exist_ok=True)
+            # Create timestamped directory for all result files
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            results_dir = output.parent / "eval_replay" / timestamp
+            results_dir.mkdir(parents=True, exist_ok=True)
+            base_name = output.stem
 
             # Build comparison results
             comparison_results = {}
@@ -1061,7 +1213,7 @@ def main(
                 per_question_details.append(detail)
 
             # Summary JSON
-            summary_path = output.parent / f"{output.stem}_summary.json"
+            summary_path = results_dir / f"{base_name}_summary.json"
             summary_dict = {
                 "candidate": candidate,
                 "baseline": baseline,
@@ -1093,10 +1245,11 @@ def main(
             with open(summary_path, "w") as f:
                 json.dump(summary_dict, f, indent=2)
 
-            click.echo(f"\nSummary JSON: {summary_path}")
+            click.echo(f"\nResults directory: {results_dir}")
+            click.echo(f"Summary JSON: {summary_path.name}")
 
             # Details JSON (per-question baseline + candidate scores)
-            details_path = output.parent / f"{output.stem}_details.json"
+            details_path = results_dir / f"{base_name}_details.json"
             details_dict = {
                 "candidate": candidate,
                 "baseline": baseline,
@@ -1108,10 +1261,10 @@ def main(
             with open(details_path, "w") as f:
                 json.dump(details_dict, f, indent=2)
 
-            click.echo(f"Details JSON: {details_path}")
+            click.echo(f"Details JSON: {details_path.name}")
 
             # CSV output (metrics summary)
-            csv_path = output.parent / f"{output.stem}.csv"
+            csv_path = results_dir / f"{base_name}.csv"
             with open(csv_path, "w", newline="") as f:
                 writer = csv.writer(f)
                 # Header
@@ -1142,7 +1295,53 @@ def main(
                             ]
                         )
 
-            click.echo(f"CSV summary: {csv_path}")
+            click.echo(f"CSV summary: {csv_path.name}")
+
+            # Chunks CSV (retrieved contexts per question - one row per question)
+            chunks_csv_path = results_dir / f"{base_name}_chunks.csv"
+            with open(chunks_csv_path, "w", newline="") as f:
+                chunk_writer = csv.writer(f)
+                # Header
+                chunk_writer.writerow(
+                    [
+                        "question_id",
+                        "question",
+                        "baseline_chunks",
+                        "candidate_chunks",
+                    ]
+                )
+                # Rows - one per question, chunks in columns separated by \n---\n
+                for i, question in enumerate(questions):
+                    question_id = f"q_{i:04d}"
+
+                    # Baseline chunks (all in one cell)
+                    baseline_chunks_list = []
+                    if i < len(baseline_details):
+                        for chunk in baseline_details[i].get("retrieved_contexts", []):
+                            text = chunk.get("text", "")[:500]  # Truncate long text
+                            score = chunk.get("score", "")
+                            baseline_chunks_list.append(f"[{score}] {text}")
+                    baseline_chunks = "\n---\n".join(baseline_chunks_list)
+
+                    # Candidate chunks (all in one cell)
+                    candidate_chunks_list = []
+                    if i < len(candidate_details):
+                        for chunk in candidate_details[i].get("retrieved_contexts", []):
+                            text = chunk.get("text", "")[:500]  # Truncate long text
+                            score = chunk.get("score", "")
+                            candidate_chunks_list.append(f"[{score}] {text}")
+                    candidate_chunks = "\n---\n".join(candidate_chunks_list)
+
+                    chunk_writer.writerow(
+                        [
+                            question_id,
+                            question,
+                            baseline_chunks,
+                            candidate_chunks,
+                        ]
+                    )
+
+            click.echo(f"Chunks CSV: {chunks_csv_path.name}")
 
         # Exit with appropriate code (based on primary faithfulness metric)
         if primary_result:

@@ -12,7 +12,6 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from beartype import beartype
 from rich.console import Console
 from rich.progress import Progress
 
@@ -22,7 +21,6 @@ from eval_harness.stubs.rag.chunking import ChunkingStrategy
 console = Console()
 
 
-@beartype
 class DocumentIngester:
     """
     Batch document ingestion pipeline for ChromaDB.
