@@ -402,18 +402,18 @@ class PhoenixAdapter:
     def start_evaluation_span(
         self,
         trace_id: str,
-        ragas_metrics: dict[str, float],
+        evaluation_metrics: dict[str, float],
         verdict: str | None = None,
         reasoning: dict[str, Any] | None = None,
     ) -> None:
         """
-        Create evaluation span (EVALUATOR kind - LLM judge via RAGAS/DeepEval).
+        Create evaluation span (EVALUATOR kind - LLM judge via DeepEval).
 
         If called within rag_query_span context, becomes a child span automatically.
 
         Args:
             trace_id: Parent trace ID (for tracking).
-            ragas_metrics: Dictionary of metric scores.
+            evaluation_metrics: Dictionary of metric scores.
             verdict: Optional verdict string (PASS/NEEDS_REVIEW/ERROR).
             reasoning: Optional full reasoning from DeepEval with keys:
                 - metric_name.reason: L1 overall explanation
@@ -425,7 +425,7 @@ class PhoenixAdapter:
         self._evaluations.append(
             {
                 "trace_id": trace_id,
-                "metrics": ragas_metrics,
+                "metrics": evaluation_metrics,
             }
         )
 
@@ -441,12 +441,12 @@ class PhoenixAdapter:
 
             # Build output summary for Phoenix UI
             metrics_summary = json.dumps(
-                {k: round(v, 4) for k, v in ragas_metrics.items()}
+                {k: round(v, 4) for k, v in evaluation_metrics.items()}
             )
             span.set_attribute("output.value", metrics_summary)
 
             # Individual metric scores
-            for metric_name, score in ragas_metrics.items():
+            for metric_name, score in evaluation_metrics.items():
                 span.set_attribute(f"evaluation.{metric_name}", score)
 
             # Add reasoning data if provided (DeepEval full reasoning)

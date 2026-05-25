@@ -1,6 +1,6 @@
 # eval-harness
 
-Evaluation framework for document parsing and RAG systems. Supports deterministic metrics, LLM-as-judge evaluation (RAGAS), reproducible baseline comparisons using public benchmarks (OmniDocBench, DP-Bench, Legal RAG Bench), and synthetic span generation for replay evaluation.
+Evaluation framework for document parsing and RAG systems. Supports deterministic metrics, LLM-as-judge evaluation (DeepEval), reproducible baseline comparisons using public benchmarks (OmniDocBench, DP-Bench, Legal RAG Bench), and synthetic span generation for replay evaluation.
 
 ## Quick Start
 
@@ -14,7 +14,7 @@ uv sync --all-extras
 # (Optional) Install replay service dependencies
 uv sync --extra replay
 
-# Set API keys for RAGAS evaluation
+# Set API keys for DeepEval evaluation
 export OPENAI_API_KEY=sk-...
 export HF_TOKEN=...  # For Legal RAG Bench (optional if ~/.huggingface/token exists)
 
@@ -24,7 +24,7 @@ uv run python scripts/prepare_legal_rag_bench_corpus.py
 # Run parsing evaluation
 uv run eval-parsing --dataset dp_bench --parser fast
 
-# Run RAG evaluation (RAGAS LLM-judge metrics)
+# Run RAG evaluation (DeepEval LLM-judge metrics)
 uv run eval-rag --slice nano --rag stub-local
 
 # Generate baseline spans for replay evaluation (stores metrics in Phoenix)
@@ -63,7 +63,7 @@ uv sync --extra replay
 
 ### 2. Set API Keys
 
-For RAGAS evaluation (LLM-as-a-judge metrics):
+For DeepEval evaluation (LLM-as-a-judge metrics):
 
 ```bash
 export OPENAI_API_KEY=sk-...
@@ -146,7 +146,7 @@ uv run eval-parsing --dataset dp_bench --parser fast --output-dir ./my_results
 
 ## RAG Evaluation
 
-Evaluate RAG systems on legal reasoning questions using RAGAS LLM-judge metrics.
+Evaluate RAG systems on legal reasoning questions using DeepEval LLM-judge metrics.
 
 ### Dataset: Legal RAG Bench
 
@@ -179,7 +179,7 @@ uv run eval-rag --slice nano --rag stub-local --force-reingest
 
 **Note:** `--rag` is required. The `stub-local` option uses a ChromaDB-based reference implementation for demonstration. To evaluate your own RAG system, implement a custom query function and integrate it via the `RagAdapter`.
 
-### RAGAS Metrics
+### DeepEval Metrics
 
 | Metric | Component | Description |
 |--------|-----------|-------------|
@@ -571,7 +571,7 @@ Phoenix creates nested spans showing each stage of RAG evaluation:
 | **RETRIEVER** | Document retrieval from vector store |
 | **EMBEDDING** | Query embedding generation |
 | **LLM** | LLM generation step |
-| **EVALUATOR** | RAGAS LLM-judge evaluation |
+| **EVALUATOR** | DeepEval LLM-judge evaluation |
 
 **Example trace structures:**
 ```
@@ -592,7 +592,7 @@ replay_stub-chunks-512-overlap-150 (CHAIN)
 
 - **Session grouping**: All queries grouped by evaluation run
 - **Latency tracking**: Per-component timing (retrieval, generation, evaluation)
-- **RAGAS internal traces**: OpenAI instrumentation shows LLM judge API calls
+- **DeepEval internal traces**: OpenAI instrumentation shows LLM judge API calls
 - **Fallback**: If Phoenix unavailable, traces buffered to Parquet
 
 ### Configuration
@@ -649,14 +649,14 @@ q_1,"What is the burden...","The prosecution bears...","The prosecution must..."
 │   ├── adapters/           # User integrates their systems here
 │   │   ├── parser_adapter.py
 │   │   ├── rag_adapter.py
-│   │   └── ragas_adapter.py  # RAGAS LLM-judge wrapper
+│   │   └── deepeval_adapter.py  # DeepEval LLM-judge wrapper
 │   ├── datasets/           # Benchmark loaders
 │   │   ├── legal_rag_bench.py  # isaacus/legal-rag-bench (HF)
 │   │   ├── omnidocbench.py
 │   │   └── dp_bench.py
 │   ├── metrics/            # ALL evaluation metrics
 │   │   ├── parsing/        # NID, TEDS, MHS, BLEU, METEOR
-│   │   └── ragas_config.py  # RAGAS LLM/embedding backends
+│   │   └── deepeval_config.py  # DeepEval LLM/embedding backends
 │   ├── replay/             # Replay evaluation module
 │   │   ├── phoenix_client.py
 │   │   ├── corpus.py
@@ -723,7 +723,7 @@ q_1,"What is the burden...","The prosecution bears...","The prosecution must..."
 
 **Observability (optional):**
 - `arize-phoenix>=4.0.0` - RAG pipeline tracing and visualization
-- `openinference-instrumentation-openai` - OpenAI instrumentation for RAGAS internal traces
+- `openinference-instrumentation-openai` - OpenAI instrumentation for DeepEval internal traces
 
 **Replay (optional):**
 - `arize-phoenix>=4.0.0` - Phoenix SDK for span export/query
@@ -765,7 +765,7 @@ Other vector stores (Pinecone, pgvector, Weaviate) follow the same adapter patte
 
 ## Documentation
 
-- [Legal RAG Bench: Comprehensive Guide](docs/legal-rag-bench-guide.md) - Dataset structure, RAGAS metrics explained, score interpretation
+- [Legal RAG Bench: Comprehensive Guide](docs/legal-rag-bench-guide.md) - Dataset structure, DeepEval metrics explained, score interpretation
 - [Replay Service Documentation](docs/replay-service.md) - Synthetic span generation and replay evaluation
 - [Design Documents](docs/design/) - Architecture, data flow, and schema design
 - [OpenSearch Integration Guide](docs/guides/opensearch-integration.md) - Complete walkthrough for OpenSearch users

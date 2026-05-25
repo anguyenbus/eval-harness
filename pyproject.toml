@@ -33,9 +33,6 @@ dependencies = [
     "anthropic>=0.102.0",
     "python-dotenv",
     "sacrebleu>=2.6.0",
-    # NOTE: RAGAS is deprecated. Use DeepEval for LLM evaluation instead.
-    # Will be removed in future release. Migrate to DeepEval evaluator.
-    "ragas>=0.2",
     "deepeval>=2.0.0",
     "langchain-openai",
     "datasets",
