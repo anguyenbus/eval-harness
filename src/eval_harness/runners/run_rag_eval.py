@@ -350,9 +350,9 @@ def main() -> None:
     )
     parser.add_argument(
         "--slice",
-        choices=["nano", "full"],
-        default="full",
-        help="Dataset slice (nano=10 queries, full=100 queries)",
+        choices=["pico", "nano", "full"],
+        default="pico",
+        help="Dataset slice (pico=2 queries, nano=10 queries, full=100 queries)",
     )
     parser.add_argument(
         "--rag",

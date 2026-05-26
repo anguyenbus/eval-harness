@@ -27,6 +27,7 @@ DEFAULT_HF_TOKEN_PATH: Final[Path] = Path.home() / ".huggingface" / "token"
 DEFAULT_CACHE_DIR: Final[Path] = Path("data/rag/legal_rag_bench/")
 
 # Slice sizes
+SLICE_PICO: Final[int] = 2
 SLICE_NANO: Final[int] = 10
 
 
@@ -72,7 +73,7 @@ def _get_slice_limit(slice_name: str) -> Optional[int]:
     Get the number of questions for a given slice.
 
     Args:
-        slice_name: Either "nano" (10 questions) or "full" (100 questions).
+        slice_name: Either "pico" (2 questions), "nano" (10 questions) or "full" (100 questions).
 
     Returns:
         Number of questions to yield, or None for full dataset.
@@ -81,12 +82,14 @@ def _get_slice_limit(slice_name: str) -> Optional[int]:
         ValueError: If slice_name is not valid.
 
     """
+    if slice_name == "pico":
+        return SLICE_PICO
     if slice_name == "nano":
         return SLICE_NANO
     elif slice_name == "full":
         return None  # No limit - all 100 questions
     else:
-        raise ValueError(f"slice must be 'nano' or 'full', got: {slice_name}")
+        raise ValueError(f"slice must be 'pico', 'nano' or 'full', got: {slice_name}")
 
 
 @beartype
@@ -104,7 +107,7 @@ def load_legal_rag_bench(
 
     Args:
         cache_dir: Path to local cache directory. Default: data/rag/legal_rag_bench/.
-        slice: Either "nano" (10 questions) or "full" (100 questions). Default: "full".
+        slice: Either "pico" (2 questions), "nano" (10 questions) or "full" (100 questions). Default: "full".
         force_refresh: If True, skip cache and re-download. Default: False.
 
     Yields:
@@ -115,7 +118,7 @@ def load_legal_rag_bench(
             - reference_answer: The reference answer text
 
     Raises:
-        ValueError: If slice is not "nano" or "full".
+        ValueError: If slice is not "pico", "nano" or "full".
         FileNotFoundError: If HF token is required but not found.
 
     Example:

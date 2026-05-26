@@ -14,15 +14,15 @@ from eval_harness.datasets.legal_rag_bench import (
 class TestGetSliceLimit:
     """Test suite for _get_slice_limit function."""
 
+    def test_pico_slice_returns_2(self):
+        """Test that pico slice returns limit of 2."""
+        limit = _get_slice_limit("pico")
+        assert limit == 2
+
     def test_nano_slice_returns_10(self):
         """Test that nano slice returns limit of 10."""
         limit = _get_slice_limit("nano")
         assert limit == 10
-
-    def test_mini_slice_returns_100(self):
-        """Test that mini slice returns limit of 100."""
-        limit = _get_slice_limit("mini")
-        assert limit == 100
 
     def test_full_slice_returns_none(self):
         """Test that full slice returns None (no limit)."""
@@ -87,12 +87,12 @@ class TestLegalRagBenchLoader:
         mock_dataset = MagicMock()
 
         # Create mock data for 100 questions
-        # Note: The actual dataset uses: id, query, answer, passage_id
+        # Note: The actual dataset uses: id, question, answer, relevant_passage_id
         mock_data = [
             {
                 "id": f"q{i:03d}",
-                "query": f"Question {i}?",
-                "passage_id": f"passage_{i}",
+                "question": f"Question {i}?",
+                "relevant_passage_id": f"passage_{i}",
                 "answer": f"Answer {i}.",
             }
             for i in range(100)
@@ -111,14 +111,14 @@ class TestLegalRagBenchLoader:
     def test_returns_correct_tuple_structure(self, tmp_path):
         """Test that loader returns (query_id, query_text, relevant_passage_id, reference_answer)."""
         # Mock dataset with single item
-        # Note: The actual isaacus/legal-rag-bench dataset uses: id, query, answer, passage_id
+        # Note: The actual isaacus/legal-rag-bench dataset uses: id, question, answer, relevant_passage_id
         mock_dataset = MagicMock()
 
         mock_data = [
             {
                 "id": "q001",  # Dataset uses "id" not "query_id"
-                "query": "What is the termination clause?",
-                "passage_id": "passage_123",  # Dataset uses "passage_id"
+                "question": "What is the termination clause?",
+                "relevant_passage_id": "passage_123",  # Dataset uses "relevant_passage_id"
                 "answer": "The contract can be terminated with 30 days notice.",
             }
         ]
@@ -127,7 +127,7 @@ class TestLegalRagBenchLoader:
 
         with patch("datasets.load_dataset", return_value=mock_dataset):
             results = list(
-                load_legal_rag_bench(tmp_path, slice="nano", force_refresh=False)
+                load_legal_rag_bench(tmp_path, slice="pico", force_refresh=False)
             )
 
             assert len(results) == 1
@@ -148,8 +148,8 @@ class TestLegalRagBenchLoader:
         mock_data = [
             {
                 "id": f"q{i:03d}",
-                "query": f"Question {i}?",
-                "passage_id": f"passage_{i}",
+                "question": f"Question {i}?",
+                "relevant_passage_id": f"passage_{i}",
                 "answer": f"Answer {i}.",
             }
             for i in range(5)
@@ -172,8 +172,8 @@ class TestLegalRagBenchLoader:
         mock_data = [
             {
                 "id": f"q{i:03d}",
-                "query": f"Question {i}?",
-                "passage_id": f"passage_{i}",
+                "question": f"Question {i}?",
+                "relevant_passage_id": f"passage_{i}",
                 "answer": f"Answer {i}.",
             }
             for i in range(200)
@@ -182,17 +182,17 @@ class TestLegalRagBenchLoader:
         mock_dataset.__iter__.return_value = iter(mock_data)
 
         with patch("datasets.load_dataset", return_value=mock_dataset):
+            # Pico should give 2
+            pico_results = list(
+                load_legal_rag_bench(tmp_path, slice="pico", force_refresh=False)
+            )
+            assert len(pico_results) == 2
+
             # Nano should give 10
             nano_results = list(
                 load_legal_rag_bench(tmp_path, slice="nano", force_refresh=False)
             )
             assert len(nano_results) == 10
-
-            # Mini should give 100
-            mini_results = list(
-                load_legal_rag_bench(tmp_path, slice="mini", force_refresh=False)
-            )
-            assert len(mini_results) == 100
 
     def test_cache_directory_created(self, tmp_path):
         """Test that cache directory is created if it doesn't exist."""

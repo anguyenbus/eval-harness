@@ -88,6 +88,10 @@ class TestEvaluatorParameterHandling:
 
             mock_metric = MagicMock()
             mock_metric.score = 0.85
+            mock_metric.success = True
+            mock_metric.reason = "The answer is fully supported by context."
+            mock_metric.threshold = 0.5
+            mock_metric.evaluation_model = "gpt-4o-mini"
             mock_metric_class.return_value = mock_metric
 
             mock_test_case = MagicMock()
@@ -96,7 +100,7 @@ class TestEvaluatorParameterHandling:
             evaluator = create_faithfulness_evaluator(judge_model="gpt-4o-mini")
 
             # Call with dict parameters (Phoenix format)
-            evaluator(
+            result = evaluator(
                 output=mock_task_output,
                 input={"input": "Test question?"},
                 expected={"expected": "Test expected answer."},
@@ -107,8 +111,19 @@ class TestEvaluatorParameterHandling:
             call_kwargs = mock_test_case_class.call_args[1]
             assert call_kwargs["input"] == "Test question?"
             assert call_kwargs["actual_output"] == "This is a test answer."
-            assert call_kwargs["expected_output"] == "Test expected answer."
             assert call_kwargs["retrieval_context"] == ["Context 1", "Context 2"]
+
+            # Verify result contains explanation and metadata
+            assert result["score"] == 0.85
+            assert result["label"] == "faithful"
+            assert result["explanation"] == "The answer is fully supported by context."
+            # Check metadata fields
+            metadata = result["metadata"]
+            assert metadata["threshold"] == 0.5
+            assert metadata["success"] is True
+            assert metadata["model"] == "gpt-4o-mini"
+            # Successful evaluation should not include verdicts (failed-only pattern)
+            assert "verdicts" not in metadata
 
     def test_faithfulness_evaluator_with_string_params(self, mock_task_output):
         """Faithfulness evaluator works with string parameters."""
@@ -117,6 +132,9 @@ class TestEvaluatorParameterHandling:
 
             mock_metric = MagicMock()
             mock_metric.score = 0.85
+            mock_metric.success = True
+            mock_metric.reason = "Good answer."
+            mock_metric.threshold = 0.5
             mock_metric_class.return_value = mock_metric
 
             mock_test_case = MagicMock()
@@ -125,7 +143,7 @@ class TestEvaluatorParameterHandling:
             evaluator = create_faithfulness_evaluator(judge_model="gpt-4o-mini")
 
             # Call with string parameters (ideal format)
-            evaluator(
+            result = evaluator(
                 output=mock_task_output,
                 input="Test question?",
                 expected="Test expected answer.",
@@ -135,6 +153,8 @@ class TestEvaluatorParameterHandling:
             call_kwargs = mock_test_case_class.call_args[1]
             assert call_kwargs["input"] == "Test question?"
             assert call_kwargs["actual_output"] == "This is a test answer."
+            assert result["score"] == 0.85
+            assert "explanation" in result
 
     def test_context_precision_evaluator_with_output_key_dict(self, mock_task_output):
         """Context precision evaluator handles {'output': ...} dict format."""
@@ -143,6 +163,9 @@ class TestEvaluatorParameterHandling:
 
             mock_metric = MagicMock()
             mock_metric.score = 0.75
+            mock_metric.success = True
+            mock_metric.reason = "Good precision."
+            mock_metric.threshold = 0.5
             mock_metric_class.return_value = mock_metric
 
             mock_test_case = MagicMock()
@@ -151,7 +174,7 @@ class TestEvaluatorParameterHandling:
             evaluator = create_context_precision_evaluator(judge_model="gpt-4o-mini")
 
             # Call with 'output' key (old Phoenix format)
-            evaluator(
+            result = evaluator(
                 output=mock_task_output,
                 input={"input": "Question?"},
                 expected={"output": "Expected answer."},
@@ -161,6 +184,8 @@ class TestEvaluatorParameterHandling:
             call_kwargs = mock_test_case_class.call_args[1]
             assert call_kwargs["input"] == "Question?"
             assert call_kwargs["expected_output"] == "Expected answer."
+            assert result["score"] == 0.75
+            assert "explanation" in result
 
     def test_context_recall_evaluator_with_expected_key_dict(self, mock_task_output):
         """Context recall evaluator handles {'expected': ...} dict format."""
@@ -169,6 +194,9 @@ class TestEvaluatorParameterHandling:
 
             mock_metric = MagicMock()
             mock_metric.score = 0.80
+            mock_metric.success = True
+            mock_metric.reason = "Good recall."
+            mock_metric.threshold = 0.5
             mock_metric_class.return_value = mock_metric
 
             mock_test_case = MagicMock()
@@ -177,7 +205,7 @@ class TestEvaluatorParameterHandling:
             evaluator = create_context_recall_evaluator(judge_model="gpt-4o-mini")
 
             # Call with 'expected' key
-            evaluator(
+            result = evaluator(
                 output=mock_task_output,
                 input={"input": "Question?"},
                 expected={"expected": "Expected answer."},
@@ -187,6 +215,8 @@ class TestEvaluatorParameterHandling:
             call_kwargs = mock_test_case_class.call_args[1]
             assert call_kwargs["input"] == "Question?"
             assert call_kwargs["expected_output"] == "Expected answer."
+            assert result["score"] == 0.80
+            assert "explanation" in result
 
     def test_answer_relevancy_evaluator_with_dict_input(self, mock_task_output):
         """Answer relevancy evaluator handles dict input parameter."""
@@ -198,6 +228,9 @@ class TestEvaluatorParameterHandling:
 
             mock_metric = MagicMock()
             mock_metric.score = 0.90
+            mock_metric.success = True
+            mock_metric.reason = "Relevant answer."
+            mock_metric.threshold = 0.5
             mock_metric_class.return_value = mock_metric
 
             mock_test_case = MagicMock()
@@ -206,7 +239,7 @@ class TestEvaluatorParameterHandling:
             evaluator = create_answer_relevancy_evaluator(judge_model="gpt-4o-mini")
 
             # Call with dict input
-            evaluator(
+            result = evaluator(
                 output=mock_task_output,
                 input={"input": "Test question?"},
             )
@@ -215,6 +248,8 @@ class TestEvaluatorParameterHandling:
             call_kwargs = mock_test_case_class.call_args[1]
             assert call_kwargs["input"] == "Test question?"
             assert call_kwargs["actual_output"] == "This is a test answer."
+            assert result["score"] == 0.90
+            assert "explanation" in result
 
     def test_evaluator_handles_none_output(self):
         """Evaluator handles None output gracefully."""
@@ -223,6 +258,9 @@ class TestEvaluatorParameterHandling:
 
             mock_metric = MagicMock()
             mock_metric.score = 0.0
+            mock_metric.success = False
+            mock_metric.reason = ""
+            mock_metric.threshold = 0.5
             mock_metric_class.return_value = mock_metric
 
             mock_test_case = MagicMock()
@@ -230,17 +268,17 @@ class TestEvaluatorParameterHandling:
 
             evaluator = create_faithfulness_evaluator(judge_model="gpt-4o-mini")
 
-            # Call with None output
-            evaluator(
+            # Call with None output - returns skipped result
+            result = evaluator(
                 output=None,
                 input="Question?",
                 expected="Answer.",
             )
 
-            mock_test_case_class.assert_called_once()
-            call_kwargs = mock_test_case_class.call_args[1]
-            assert call_kwargs["actual_output"] == ""
-            assert call_kwargs["retrieval_context"] == []
+            # Should return skipped result since retrieval_context is empty
+            assert result["score"] == 0.0
+            assert result["label"] == "skipped"
+            assert "Missing retrieval_context" in result["explanation"]
 
     def test_evaluator_handles_missing_keys_in_dict(self, mock_task_output):
         """Evaluator handles dicts with missing keys gracefully."""
@@ -248,7 +286,10 @@ class TestEvaluatorParameterHandling:
              patch("deepeval.test_case.LLMTestCase") as mock_test_case_class:
 
             mock_metric = MagicMock()
-            mock_metric.score = 0.0
+            mock_metric.score = 0.85
+            mock_metric.success = True
+            mock_metric.reason = "Good answer."
+            mock_metric.threshold = 0.5
             mock_metric_class.return_value = mock_metric
 
             mock_test_case = MagicMock()
@@ -256,8 +297,8 @@ class TestEvaluatorParameterHandling:
 
             evaluator = create_faithfulness_evaluator(judge_model="gpt-4o-mini")
 
-            # Call with dict that has wrong keys
-            evaluator(
+            # Call with dict that has wrong keys but valid output
+            result = evaluator(
                 output=mock_task_output,
                 input={"wrong_key": "Question?"},
                 expected={"wrong_key": "Answer."},
@@ -267,7 +308,8 @@ class TestEvaluatorParameterHandling:
             call_kwargs = mock_test_case_class.call_args[1]
             # Should fall back to empty strings when keys are missing
             assert call_kwargs["input"] == ""
-            assert call_kwargs["expected_output"] == ""
+            # But result should still have score since retrieval_context is present
+            assert result["score"] == 0.85
 
     def test_context_recall_evaluator_no_embedder_param(self, mock_task_output):
         """Context recall evaluator creates metric without embedder param."""
@@ -276,6 +318,9 @@ class TestEvaluatorParameterHandling:
 
             mock_metric = MagicMock()
             mock_metric.score = 0.80
+            mock_metric.success = True
+            mock_metric.reason = "Good recall."
+            mock_metric.threshold = 0.5
             mock_metric_class.return_value = mock_metric
 
             mock_test_case = MagicMock()
@@ -284,7 +329,7 @@ class TestEvaluatorParameterHandling:
             evaluator = create_context_recall_evaluator(judge_model="gpt-4o-mini")
 
             # Call evaluator to trigger metric creation
-            evaluator(
+            result = evaluator(
                 output=mock_task_output,
                 input={"input": "Question?"},
                 expected={"expected": "Expected answer."},
@@ -296,6 +341,90 @@ class TestEvaluatorParameterHandling:
             assert "embedder" not in call_kwargs
             assert call_kwargs["model"] == "gpt-4o-mini"
             assert call_kwargs["include_reason"] is True
+            assert result["score"] == 0.80
+
+    def test_failed_evaluator_includes_verdicts_in_metadata(self, mock_task_output):
+        """Failed evaluations include verdicts in metadata for debugging."""
+        with patch("deepeval.metrics.FaithfulnessMetric") as mock_metric_class, \
+             patch("deepeval.test_case.LLMTestCase") as mock_test_case_class:
+
+            # Create mock verdict objects that return dicts from model_dump()
+            mock_verdict_1 = MagicMock()
+            mock_verdict_1.verdict = "no"
+            mock_verdict_1.reason = "Claim not supported by context"
+            mock_verdict_1.model_dump.return_value = {
+                "verdict": "no",
+                "reason": "Claim not supported by context",
+            }
+
+            mock_verdict_2 = MagicMock()
+            mock_verdict_2.verdict = "yes"
+            mock_verdict_2.model_dump.return_value = {"verdict": "yes"}
+
+            mock_metric = MagicMock()
+            mock_metric.score = 0.3  # Failed (below threshold)
+            mock_metric.success = False
+            mock_metric.reason = "Some claims are not supported."
+            mock_metric.threshold = 0.5
+            mock_metric.evaluation_model = "gpt-4o-mini"
+            mock_metric.verdicts = [mock_verdict_1, mock_verdict_2]
+            mock_metric_class.return_value = mock_metric
+
+            mock_test_case = MagicMock()
+            mock_test_case_class.return_value = mock_test_case
+
+            evaluator = create_faithfulness_evaluator(judge_model="gpt-4o-mini")
+
+            result = evaluator(
+                output=mock_task_output,
+                input="Question?",
+                expected="Answer.",
+            )
+
+            # Failed evaluation should include verdicts
+            assert result["score"] == 0.3
+            assert result["label"] == "unfaithful"
+            metadata = result["metadata"]
+            assert "verdicts" in metadata
+            assert len(metadata["verdicts"]) == 2
+            # Verify verdicts were serialized using model_dump
+            assert metadata["verdicts"][0]["verdict"] == "no"
+
+    def test_passed_evaluator_excludes_verdicts_from_metadata(self, mock_task_output):
+        """Passed evaluations exclude verdicts from metadata (failed-only pattern)."""
+        with patch("deepeval.metrics.FaithfulnessMetric") as mock_metric_class, \
+             patch("deepeval.test_case.LLMTestCase") as mock_test_case_class:
+
+            # Even though verdicts exist, they shouldn't be included for passing scores
+            mock_verdict = MagicMock()
+            mock_verdict.verdict = "yes"
+            mock_verdict.model_dump.return_value = {"verdict": "yes"}
+
+            mock_metric = MagicMock()
+            mock_metric.score = 0.9  # Passed (above threshold)
+            mock_metric.success = True
+            mock_metric.reason = "All claims supported."
+            mock_metric.threshold = 0.5
+            mock_metric.evaluation_model = "gpt-4o-mini"
+            mock_metric.verdicts = [mock_verdict]
+            mock_metric_class.return_value = mock_metric
+
+            mock_test_case = MagicMock()
+            mock_test_case_class.return_value = mock_test_case
+
+            evaluator = create_faithfulness_evaluator(judge_model="gpt-4o-mini")
+
+            result = evaluator(
+                output=mock_task_output,
+                input="Question?",
+                expected="Answer.",
+            )
+
+            # Passing evaluation should NOT include verdicts
+            assert result["score"] == 0.9
+            assert result["label"] == "faithful"
+            metadata = result["metadata"]
+            assert "verdicts" not in metadata
 
 
 @pytest.mark.unit
@@ -501,6 +630,9 @@ class TestTaskOutputFormat:
 
             mock_metric = MagicMock()
             mock_metric.score = 1.0
+            mock_metric.success = True
+            mock_metric.reason = "Excellent answer."
+            mock_metric.threshold = 0.5
             mock_metric_class.return_value = mock_metric
 
             mock_test_case = MagicMock()
@@ -509,7 +641,7 @@ class TestTaskOutputFormat:
             evaluator = create_faithfulness_evaluator(judge_model="gpt-4o-mini")
 
             # Should not raise an error
-            evaluator(
+            result = evaluator(
                 output=task_output,
                 input="Question?",
                 expected="Expected answer.",
@@ -520,3 +652,6 @@ class TestTaskOutputFormat:
             call_kwargs = mock_test_case_class.call_args[1]
             assert call_kwargs["actual_output"] == "Answer text."
             assert call_kwargs["retrieval_context"] == ["Context"]
+            # Verify result has explanation
+            assert result["score"] == 1.0
+            assert result["explanation"] == "Excellent answer."

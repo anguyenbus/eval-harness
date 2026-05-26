@@ -19,8 +19,8 @@ Example:
     ...     dataset=dataset,
     ...     task=rag_task,
     ...     evaluators=[
-    ...         create_faithfulness_evaluator(llm_provider="openai"),
-    ...         create_context_precision_evaluator(llm_provider="openai"),
+    ...         create_faithfulness_evaluator(),
+    ...         create_context_precision_evaluator(),
     ...     ],
     ... )
 
@@ -41,6 +41,34 @@ except ImportError:
 
 # Constants
 DEFAULT_JUDGE_MODEL: Final[str] = "gpt-4o-mini"
+
+
+@beartype
+def _serialize_verdicts(verdicts: Any) -> list[dict[str, Any]]:
+    """
+    Serialize DeepEval verdict objects to dict safely across pydantic versions.
+
+    Handles pydantic v2 (model_dump), pydantic v1 (dict), and plain objects.
+
+    Args:
+        verdicts: Verdict objects from DeepEval metrics.
+
+    Returns:
+        List of serialized verdict dicts.
+
+    """
+    if not verdicts:
+        return []
+
+    result = []
+    for v in verdicts:
+        if hasattr(v, "model_dump"):  # pydantic v2
+            result.append(v.model_dump())
+        elif hasattr(v, "dict"):  # pydantic v1
+            result.append(v.dict())
+        else:
+            result.append(vars(v))  # plain dataclass / object
+    return result
 
 
 @beartype
@@ -79,7 +107,7 @@ def create_faithfulness_evaluator(
 
     Args:
         judge_model: Judge model name.
-        embedder: Optional shared embedder instance.
+        embedder: Unused (kept for API compatibility).
 
     Returns:
         Phoenix evaluator function compatible with run_experiment().
@@ -88,51 +116,38 @@ def create_faithfulness_evaluator(
     if create_evaluator is None:
         raise ImportError("phoenix.evals.create_evaluator not available")
 
-    # Lazy import to avoid circular dependencies
-    def _metric_factory():
-        from deepeval.metrics import FaithfulnessMetric
-        from deepeval.test_case import LLMTestCase
+    # Cache metric outside closure for performance
+    from deepeval.metrics import FaithfulnessMetric
+    from deepeval.test_case import LLMTestCase
 
-        # Initialize metric with configuration
-        # Note: temperature is set via environment variable by DeepEval
-        metric = FaithfulnessMetric(
-            model=judge_model,
-            include_reason=True,
-        )
+    metric = FaithfulnessMetric(
+        model=judge_model,
+        include_reason=True,
+    )
 
-        return metric, LLMTestCase
-
-    @create_evaluator(name="faithfulness", direction="maximize")
+    @create_evaluator(name="faithfulness", kind="LLM")
     def faithfulness_evaluator(
         output: dict[str, Any] | None,
         expected: str | dict[str, str] | None = None,
         input: str | dict[str, str] | None = None,
-    ) -> float:
+    ) -> dict[str, Any]:
         """
         Evaluate faithfulness using DeepEval.
 
         Args:
             output: Task output dict with 'answer' and 'retrieval_context' keys.
-            expected: Reference answer (string or dict with 'expected' key).
+            expected: Reference answer (unused by faithfulness).
             input: Original input question (string or dict with 'input' key).
 
         Returns:
-            Faithfulness score (0-1, higher is better).
+            Dict with score, label, and explanation.
 
         """
-        metric, LLMTestCase = _metric_factory()
-
         # Extract input string (handle both string and dict formats)
         if isinstance(input, dict):
             input_str = input.get("input", "") or input.get("expected", "")
         else:
             input_str = input or ""
-
-        # Extract expected string (handle both string and dict formats)
-        if isinstance(expected, dict):
-            expected_str = expected.get("expected", "") or expected.get("output", "")
-        else:
-            expected_str = expected or ""
 
         # Extract values from task output dict
         if isinstance(output, dict):
@@ -142,19 +157,47 @@ def create_faithfulness_evaluator(
             actual_answer = str(output) if output else ""
             retrieval_context = []
 
+        # Guard: faithfulness requires retrieval context
+        if not retrieval_context or not actual_answer:
+            return {
+                "score": 0.0,
+                "label": "skipped",
+                "explanation": (
+                    "Missing retrieval_context or actual_output; "
+                    "faithfulness cannot be computed."
+                ),
+            }
+
         # Create DeepEval test case
+        # Note: Faithfulness doesn't use expected_output
         test_case = LLMTestCase(
             input=input_str,
             actual_output=actual_answer,
             retrieval_context=retrieval_context,
-            expected_output=expected_str,
         )
 
         # Measure with trace suppression
         with _suppress_tracing_if_available():
             metric.measure(test_case)
 
-        return float(metric.score)
+        # Build metadata with failed-only verdicts for storage efficiency
+        metadata: dict[str, Any] = {
+            "threshold": metric.threshold,
+            "success": metric.success,
+            "model": getattr(metric, "evaluation_model", None),
+            "evaluation_cost": getattr(metric, "evaluation_cost", None),
+        }
+
+        # Include verdicts only for failures - these need investigation
+        if not metric.success and hasattr(metric, "verdicts"):
+            metadata["verdicts"] = _serialize_verdicts(metric.verdicts)
+
+        return {
+            "score": float(metric.score),
+            "label": "faithful" if metric.success else "unfaithful",
+            "explanation": metric.reason or "",
+            "metadata": metadata,
+        }
 
     return faithfulness_evaluator
 
@@ -172,7 +215,7 @@ def create_context_precision_evaluator(
 
     Args:
         judge_model: Judge model name.
-        embedder: Optional shared embedder instance.
+        embedder: Unused (kept for API compatibility).
 
     Returns:
         Phoenix evaluator function compatible with run_experiment().
@@ -181,23 +224,21 @@ def create_context_precision_evaluator(
     if create_evaluator is None:
         raise ImportError("phoenix.evals.create_evaluator not available")
 
-    def _metric_factory():
-        from deepeval.metrics import ContextualPrecisionMetric
-        from deepeval.test_case import LLMTestCase
+    # Cache metric outside closure
+    from deepeval.metrics import ContextualPrecisionMetric
+    from deepeval.test_case import LLMTestCase
 
-        metric = ContextualPrecisionMetric(
-            model=judge_model,
-            include_reason=True,
-        )
+    metric = ContextualPrecisionMetric(
+        model=judge_model,
+        include_reason=True,
+    )
 
-        return metric, LLMTestCase
-
-    @create_evaluator(name="context_precision", direction="maximize")
+    @create_evaluator(name="context_precision", kind="LLM")
     def context_precision_evaluator(
         output: dict[str, Any] | None,
         expected: str | dict[str, str],
         input: str | dict[str, str] | None = None,
-    ) -> float:
+    ) -> dict[str, Any]:
         """
         Evaluate contextual precision using DeepEval.
 
@@ -207,18 +248,16 @@ def create_context_precision_evaluator(
             input: Original input question (string or dict with 'input' key).
 
         Returns:
-            Contextual precision score (0-1, higher is better).
+            Dict with score, label, and explanation.
 
         """
-        metric, LLMTestCase = _metric_factory()
-
-        # Extract input string (handle both string and dict formats)
+        # Extract input string
         if isinstance(input, dict):
             input_str = input.get("input", "") or input.get("expected", "")
         else:
             input_str = input or ""
 
-        # Extract expected string (handle both string and dict formats)
+        # Extract expected string
         if isinstance(expected, dict):
             expected_str = expected.get("expected", "") or expected.get("output", "")
         else:
@@ -232,6 +271,17 @@ def create_context_precision_evaluator(
             actual_answer = str(output) if output else ""
             retrieval_context = []
 
+        # Guard: need retrieval context and expected answer
+        if not retrieval_context or not expected_str:
+            return {
+                "score": 0.0,
+                "label": "skipped",
+                "explanation": (
+                    "Missing retrieval_context or expected answer; "
+                    "contextual precision cannot be computed."
+                ),
+            }
+
         test_case = LLMTestCase(
             input=input_str,
             actual_output=actual_answer,
@@ -242,7 +292,23 @@ def create_context_precision_evaluator(
         with _suppress_tracing_if_available():
             metric.measure(test_case)
 
-        return float(metric.score)
+        # Build metadata with failed-only verdicts
+        metadata: dict[str, Any] = {
+            "threshold": metric.threshold,
+            "success": metric.success,
+            "model": getattr(metric, "evaluation_model", None),
+            "evaluation_cost": getattr(metric, "evaluation_cost", None),
+        }
+
+        if not metric.success and hasattr(metric, "verdicts"):
+            metadata["verdicts"] = _serialize_verdicts(metric.verdicts)
+
+        return {
+            "score": float(metric.score),
+            "label": "precise" if metric.success else "imprecise",
+            "explanation": metric.reason or "",
+            "metadata": metadata,
+        }
 
     return context_precision_evaluator
 
@@ -260,7 +326,7 @@ def create_context_recall_evaluator(
 
     Args:
         judge_model: Judge model name.
-        embedder: Optional shared embedder instance.
+        embedder: Unused (kept for API compatibility).
 
     Returns:
         Phoenix evaluator function compatible with run_experiment().
@@ -269,23 +335,21 @@ def create_context_recall_evaluator(
     if create_evaluator is None:
         raise ImportError("phoenix.evals.create_evaluator not available")
 
-    def _metric_factory():
-        from deepeval.metrics import ContextualRecallMetric
-        from deepeval.test_case import LLMTestCase
+    # Cache metric outside closure
+    from deepeval.metrics import ContextualRecallMetric
+    from deepeval.test_case import LLMTestCase
 
-        metric = ContextualRecallMetric(
-            model=judge_model,
-            include_reason=True,
-        )
+    metric = ContextualRecallMetric(
+        model=judge_model,
+        include_reason=True,
+    )
 
-        return metric, LLMTestCase
-
-    @create_evaluator(name="context_recall", direction="maximize")
+    @create_evaluator(name="context_recall", kind="LLM")
     def context_recall_evaluator(
         output: dict[str, Any] | None,
         expected: str | dict[str, str],
         input: str | dict[str, str] | None = None,
-    ) -> float:
+    ) -> dict[str, Any]:
         """
         Evaluate contextual recall using DeepEval.
 
@@ -295,18 +359,16 @@ def create_context_recall_evaluator(
             input: Original input question (string or dict with 'input' key).
 
         Returns:
-            Contextual recall score (0-1, higher is better).
+            Dict with score, label, and explanation.
 
         """
-        metric, LLMTestCase = _metric_factory()
-
-        # Extract input string (handle both string and dict formats)
+        # Extract input string
         if isinstance(input, dict):
             input_str = input.get("input", "") or input.get("expected", "")
         else:
             input_str = input or ""
 
-        # Extract expected string (handle both string and dict formats)
+        # Extract expected string
         if isinstance(expected, dict):
             expected_str = expected.get("expected", "") or expected.get("output", "")
         else:
@@ -320,6 +382,17 @@ def create_context_recall_evaluator(
             actual_answer = str(output) if output else ""
             retrieval_context = []
 
+        # Guard: need retrieval context and expected answer
+        if not retrieval_context or not expected_str:
+            return {
+                "score": 0.0,
+                "label": "skipped",
+                "explanation": (
+                    "Missing retrieval_context or expected answer; "
+                    "contextual recall cannot be computed."
+                ),
+            }
+
         test_case = LLMTestCase(
             input=input_str,
             actual_output=actual_answer,
@@ -330,7 +403,23 @@ def create_context_recall_evaluator(
         with _suppress_tracing_if_available():
             metric.measure(test_case)
 
-        return float(metric.score)
+        # Build metadata with failed-only verdicts
+        metadata: dict[str, Any] = {
+            "threshold": metric.threshold,
+            "success": metric.success,
+            "model": getattr(metric, "evaluation_model", None),
+            "evaluation_cost": getattr(metric, "evaluation_cost", None),
+        }
+
+        if not metric.success and hasattr(metric, "verdicts"):
+            metadata["verdicts"] = _serialize_verdicts(metric.verdicts)
+
+        return {
+            "score": float(metric.score),
+            "label": "high_recall" if metric.success else "low_recall",
+            "explanation": metric.reason or "",
+            "metadata": metadata,
+        }
 
     return context_recall_evaluator
 
@@ -346,10 +435,8 @@ def create_answer_relevancy_evaluator(
     Measures how directly the generated response addresses the input question.
 
     Args:
-        llm_provider: LLM provider ("openai" or "bedrock").
         judge_model: Judge model name.
-        temperature: Sampling temperature.
-        embedder: Optional shared embedder instance (required).
+        embedder: Unused (kept for API compatibility).
 
     Returns:
         Phoenix evaluator function compatible with run_experiment().
@@ -358,62 +445,38 @@ def create_answer_relevancy_evaluator(
     if create_evaluator is None:
         raise ImportError("phoenix.evals.create_evaluator not available")
 
-    if embedder is None:
-        # Need embedder for AnswerRelevancy
-        from eval_harness.adapters.embeddings import get_embedder
+    # Cache metric outside closure
+    from deepeval.metrics import AnswerRelevancyMetric
+    from deepeval.test_case import LLMTestCase
 
-        embedder = get_embedder(
-            provider="huggingface",
-            model="sentence-transformers/all-MiniLM-L6-v2",
-        )
+    metric = AnswerRelevancyMetric(
+        model=judge_model,
+        include_reason=True,
+    )
 
-    def _metric_factory():
-        from deepeval.metrics import AnswerRelevancyMetric
-        from deepeval.test_case import LLMTestCase
-
-        metric = AnswerRelevancyMetric(
-            model=judge_model,
-            include_reason=True
-        )
-
-        return metric, LLMTestCase
-
-    @create_evaluator(name="answer_relevancy", direction="maximize")
+    @create_evaluator(name="answer_relevancy", kind="LLM")
     def answer_relevancy_evaluator(
         output: dict[str, Any] | None,
         input: str | dict[str, str],
         expected: str | dict[str, str] | None = None,
-    ) -> float:
+    ) -> dict[str, Any]:
         """
         Evaluate answer relevancy using DeepEval.
 
         Args:
-            output: Task output dict with 'answer' and 'retrieval_context' keys.
+            output: Task output dict with 'answer' key.
             input: Original input question (string or dict with 'input' key).
-            expected: Reference answer (string or dict, optional).
+            expected: Reference answer (optional, unused by relevancy).
 
         Returns:
-            Answer relevancy score (0-1, higher is better).
+            Dict with score, label, and explanation.
 
         """
-        metric, LLMTestCase = _metric_factory()
-
-        # Extract input string (handle both string and dict formats)
+        # Extract input string
         if isinstance(input, dict):
             input_str = input.get("input", "") or input.get("expected", "")
         else:
             input_str = input or ""
-
-        # Extract expected string (handle both string and dict formats)
-        if expected:
-            if isinstance(expected, dict):
-                expected_str = (
-                    expected.get("expected", "") or expected.get("output", "")
-                )
-            else:
-                expected_str = expected
-        else:
-            expected_str = ""
 
         # Extract values from task output dict
         if isinstance(output, dict):
@@ -421,15 +484,41 @@ def create_answer_relevancy_evaluator(
         else:
             actual_answer = str(output) if output else ""
 
+        # Guard: need input and actual output
+        if not input_str or not actual_answer:
+            return {
+                "score": 0.0,
+                "label": "skipped",
+                "explanation": (
+                    "Missing input or actual_output; "
+                    "answer relevancy cannot be computed."
+                ),
+            }
+
         test_case = LLMTestCase(
             input=input_str,
             actual_output=actual_answer,
-            expected_output=expected_str,
         )
 
         with _suppress_tracing_if_available():
             metric.measure(test_case)
 
-        return float(metric.score)
+        # Build metadata with failed-only verdicts
+        metadata: dict[str, Any] = {
+            "threshold": metric.threshold,
+            "success": metric.success,
+            "model": getattr(metric, "evaluation_model", None),
+            "evaluation_cost": getattr(metric, "evaluation_cost", None),
+        }
+
+        if not metric.success and hasattr(metric, "verdicts"):
+            metadata["verdicts"] = _serialize_verdicts(metric.verdicts)
+
+        return {
+            "score": float(metric.score),
+            "label": "relevant" if metric.success else "irrelevant",
+            "explanation": metric.reason or "",
+            "metadata": metadata,
+        }
 
     return answer_relevancy_evaluator

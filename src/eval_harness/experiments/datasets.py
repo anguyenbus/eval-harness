@@ -27,7 +27,7 @@ DEFAULT_DATASET_NAME: Final[str] = "legal-rag-bench"
 def create_phoenix_dataset(
     client: Client,
     corpus_dir: Path,
-    slice_name: str = "nano",
+    slice_name: str = "pico",
     dataset_name: str | None = None,
 ) -> Dataset:
     """
@@ -36,7 +36,7 @@ def create_phoenix_dataset(
     Args:
         client: Phoenix client instance.
         corpus_dir: Path to Legal RAG Bench corpus.
-        slice_name: Dataset slice ("nano" or "full").
+        slice_name: Dataset slice ("pico", "nano", or "full").
         dataset_name: Name for the dataset (defaults to "legal-rag-bench-{slice}").
 
     Returns:
@@ -97,14 +97,14 @@ def create_phoenix_dataset(
 @beartype
 def get_phoenix_dataset(
     client: Client,
-    slice_name: str = "nano",
+    slice_name: str = "pico",
 ) -> Dataset | None:
     """
     Get an existing Phoenix dataset by name.
 
     Args:
         client: Phoenix client instance.
-        slice_name: Dataset slice ("nano" or "full").
+        slice_name: Dataset slice ("pico", "nano", or "full").
 
     Returns:
         Phoenix Dataset instance or None if not found.

@@ -136,7 +136,7 @@ def run_phoenix_experiment(
     rag_adapter: Any,
     corpus_dir: Path,
     endpoint: str = "http://localhost:6006",
-    slice_name: str = "nano",
+    slice_name: str = "pico",
     experiment_name: str | None = None,
     judge_model: str = "gpt-4o-mini",
 ) -> RanExperiment:
@@ -147,7 +147,7 @@ def run_phoenix_experiment(
         rag_adapter: RAG adapter instance.
         corpus_dir: Path to RAG corpus.
         endpoint: Phoenix server endpoint.
-        slice_name: Dataset slice ("nano" or "full").
+        slice_name: Dataset slice ("pico", "nano", or "full").
         experiment_name: Name for the experiment.
         judge_model: LLM judge model for DeepEval metrics.
 
