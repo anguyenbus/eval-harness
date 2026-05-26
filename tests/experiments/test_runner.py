@@ -38,5 +38,5 @@ def test_create_rag_task_returns_callable():
     # Test task execution
     result = task({"input": "Test question"})
 
-    assert "output" in result
+    assert "answer" in result
     assert "retrieval_context" in result
