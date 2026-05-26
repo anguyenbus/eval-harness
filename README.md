@@ -25,7 +25,11 @@ uv run python scripts/prepare_legal_rag_bench_corpus.py
 uv run eval-parsing --dataset dp_bench --parser fast
 
 # Run RAG evaluation (DeepEval LLM-judge metrics)
-uv run eval-rag --slice nano --rag stub-local
+# Pico slice = 2 questions (fastest for testing)
+uv run eval-rag --slice pico --rag stub-local
+
+# Run RAG evaluation with Phoenix Native mode
+uv run eval-rag --slice pico --rag stub-local --enable-phoenix --mode native
 
 # Generate baseline spans for replay evaluation (stores metrics in Phoenix)
 uv run generate-spans --limit=10
@@ -161,13 +165,17 @@ Evaluate RAG systems on legal reasoning questions using DeepEval LLM-judge metri
 
 | Slice | Questions | Use Case |
 |-------|-----------|----------|
+| `pico` | 2 | Fastest testing, quick iteration |
 | `nano` | 10 | Quick testing, development |
 | `full` | 100 | Complete evaluation |
 
 ### Commands
 
 ```bash
-# Nano slice (10 questions, default top-k=5)
+# Pico slice (2 questions, fastest)
+uv run eval-rag --slice pico --rag stub-local
+
+# Nano slice (10 questions)
 uv run eval-rag --slice nano --rag stub-local
 
 # Full evaluation with custom retrieval depth
@@ -194,6 +202,75 @@ All metrics use LLM-as-a-judge (gpt-4o-mini) for evaluation. See [docs/legal-rag
 
 - **Relevant Passage Retrieved** - Binary: was the gold passage retrieved?
 - **Latency** - Total query time (ms)
+
+## Phoenix Integration
+
+eval-harness supports two modes of Phoenix integration for RAG evaluation:
+
+### Spans Mode (Default)
+
+Creates nested spans showing each stage of RAG evaluation in Phoenix UI.
+
+```bash
+# Start Phoenix server
+python -m phoenix.server.main serve
+
+# Run with spans mode (default when --enable-phoenix is set)
+uv run eval-rag --slice pico --rag stub-local --enable-phoenix
+```
+
+**Span Hierarchy:**
+```
+rag_evaluation (CHAIN)
+├── retriever.query (RETRIEVER)
+│   └── embed.query (EMBEDDING)
+└── generator.generate (LLM)
+```
+
+### Native Mode (Recommended)
+
+Uses Phoenix's Experiment API for structured evaluation with built-in visualizations.
+
+```bash
+# Start Phoenix server
+python -m phoenix.server.main serve
+
+# Run with Native mode
+uv run eval-rag --slice pico --rag stub-local --enable-phoenix --mode native
+```
+
+**Native Mode Benefits:**
+- **Experiments UI**: Dedicated view for comparing runs side-by-side
+- **Richer metadata**: Evaluator explanations stored per-example
+- **Failed-only verdicts**: Only stores detailed verdicts when metric fails (~80% storage savings)
+- **Better traces**: Suppresses DeepEval's internal OpenAI traces to reduce noise
+
+**Evaluator Return Format:**
+```python
+{
+    "score": 0.85,  # Float: 0-1
+    "label": "faithful",  # Str: human-readable label
+    "explanation": "Good answer...",  # Str: LLM judge reasoning
+    "metadata": {
+        "threshold": 0.5,
+        "success": True,
+        "model": "gpt-4o-mini",
+        "evaluation_cost": 0.001,
+        "verdicts": [...],  # Only when success=False
+    },
+}
+```
+
+### Graceful Degradation
+
+When `--enable-phoenix` is **NOT** set:
+- Evaluation runs normally without Phoenix dependency
+- Results still saved to CSV with all metrics
+- No tracing overhead
+
+When `--enable-phoenix` IS set but Phoenix is unavailable:
+- Spans mode: Falls back to Parquet buffer
+- Native mode: Raises clear error message
 
 ## Replay Evaluation
 
@@ -531,6 +608,7 @@ uv sync --all-extras
 
 - [docs/replay-service.md](docs/replay-service.md) - Architecture and implementation details
 - [docs/http-contract.md](docs/http-contract.md) - HTTP service contract specification
+- [docs/evaluation-system-walkthrough.md](docs/evaluation-system-walkthrough.md) - Complete evaluation system guide
 
 ## Phoenix Observability (Optional)
 
@@ -548,8 +626,11 @@ uv sync --all-extras  # Install phoenix dependencies
 # Start Phoenix server (runs on http://localhost:6006)
 python -m phoenix.server.main serve
 
-# Run evaluation with Phoenix enabled
-uv run eval-rag --slice nano --rag stub-local --enable-phoenix
+# Run evaluation with Phoenix spans mode (default)
+uv run eval-rag --slice pico --rag stub-local --enable-phoenix
+
+# Run evaluation with Phoenix Native mode (recommended)
+uv run eval-rag --slice pico --rag stub-local --enable-phoenix --mode native
 
 # Generate synthetic spans (auto-traces to Phoenix)
 uv run generate-spans --limit=10
@@ -560,40 +641,6 @@ uv run eval-replay --candidate=stub-chunks-512-overlap-150 --baseline=stub-local
 # View traces in browser
 open http://localhost:6006
 ```
-
-### Span Hierarchy
-
-Phoenix creates nested spans showing each stage of RAG evaluation:
-
-| Span Kind | Description |
-|-----------|-------------|
-| **CHAIN** | Parent/root span grouping related operations |
-| **RETRIEVER** | Document retrieval from vector store |
-| **EMBEDDING** | Query embedding generation |
-| **LLM** | LLM generation step |
-| **EVALUATOR** | DeepEval LLM-judge evaluation |
-
-**Example trace structures:**
-```
-# Synthetic span generation
-synthetic_rag_query (CHAIN)
-├── chromadb.query (RETRIEVER)
-│   └── embed.query (EMBEDDING)
-└── openai.generate (LLM)
-
-# Replay evaluation
-replay_stub-chunks-512-overlap-150 (CHAIN)
-├── chromadb.query (RETRIEVER)
-│   └── embed.query (EMBEDDING)
-└── openai.generate (LLM)
-```
-
-### Features
-
-- **Session grouping**: All queries grouped by evaluation run
-- **Latency tracking**: Per-component timing (retrieval, generation, evaluation)
-- **DeepEval internal traces**: OpenAI instrumentation shows LLM judge API calls
-- **Fallback**: If Phoenix unavailable, traces buffered to Parquet
 
 ### Configuration
 
@@ -611,8 +658,9 @@ phoenix:
 Results written to `results/` with timestamp:
 
 ```
-results/legal_rag_bench_nano_results_20260520_223534.csv
-results/legal_rag_bench_full_results_20260520_224102.csv
+results/legal_rag_bench_pico_results_20260526_223534.csv
+results/legal_rag_bench_nano_results_20260526_224102.csv
+results/legal_rag_bench_full_results_20260526_225000.csv
 ```
 
 CSV format: one row per query, all metrics as columns. Files append incrementally for real-time progress visibility.
@@ -637,6 +685,7 @@ q_1,"What is the burden...","The prosecution bears...","The prosecution must..."
 ├── contracts/              # JSON Schema contracts
 ├── docs/                   # Documentation
 │   ├── legal-rag-bench-guide.md
+│   ├── evaluation-system-walkthrough.md
 │   └── replay-service.md
 │
 ├── scripts/                # Dataset utilities
@@ -715,7 +764,7 @@ q_1,"What is the burden...","The prosecution bears...","The prosecution must..."
 - `nltk` - METEOR score
 
 **RAG:**
-- `ragas>=0.2` - LLM-as-a-judge metrics
+- `deepeval` - LLM-as-a-judge metrics
 - `sentence-transformers` - Semantic embeddings
 - `chromadb` - Vector store (stub implementation)
 - `openai` - LLM judge (set `OPENAI_API_KEY` in `.env`)
@@ -742,13 +791,14 @@ eval-harness is designed to evaluate **your** RAG system, not provide one. The C
        return {
            "answer": {"text": "..."},
            "retrieved_chunks": [{"doc_id": "...", "score": 0.85, "text": "..."}],
-           "timings_ms": {"retrieval": 50, "generation": 500, "total": 550}
+           "timings_ms": {"retrieval": 50, "generation": 500, "total": 550},
        }
    ```
 
 2. Wrap with `RagAdapter`:
    ```python
    from eval_harness.adapters.rag_adapter import RagAdapter
+
    adapter = RagAdapter(query_callable=query)
    ```
 
@@ -767,6 +817,7 @@ Other vector stores (Pinecone, pgvector, Weaviate) follow the same adapter patte
 
 - [Legal RAG Bench: Comprehensive Guide](docs/legal-rag-bench-guide.md) - Dataset structure, DeepEval metrics explained, score interpretation
 - [Replay Service Documentation](docs/replay-service.md) - Synthetic span generation and replay evaluation
+- [Evaluation System Walkthrough](docs/evaluation-system-walkthrough.md) - Complete guide to the evaluation system
 - [Design Documents](docs/design/) - Architecture, data flow, and schema design
 - [OpenSearch Integration Guide](docs/guides/opensearch-integration.md) - Complete walkthrough for OpenSearch users
 - [Parser Output Schema Explained](docs/guides/parser-output-schema-explained.md) - Why the universal schema exists
