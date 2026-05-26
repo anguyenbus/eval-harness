@@ -41,7 +41,7 @@ def test_create_answer_relevancy_evaluator_returns_callable():
 
 
 def test_faithfulness_evaluator_returns_dict_with_score():
-    """Test faithfulness evaluator returns dict with score, label, explanation."""
+    """Test faithfulness evaluator returns Score with score, label, explanation."""
     with (
         patch("deepeval.metrics.FaithfulnessMetric") as mock_metric_class,
         patch("deepeval.test_case.LLMTestCase") as mock_test_case_class,
@@ -52,6 +52,7 @@ def test_faithfulness_evaluator_returns_dict_with_score():
         mock_metric.reason = "Good answer."
         mock_metric.threshold = 0.5
         mock_metric.evaluation_model = "gpt-4o-mini"
+        mock_metric.evaluation_cost = 0.001
         mock_metric_class.return_value = mock_metric
 
         mock_test_case = MagicMock()
@@ -67,15 +68,16 @@ def test_faithfulness_evaluator_returns_dict_with_score():
             },
         )
 
-        assert isinstance(result, dict)
-        assert result["score"] == 0.85
-        assert result["label"] == "faithful"
-        assert "explanation" in result
-        assert "metadata" in result
+        assert hasattr(result, "score")
+        assert result.score == 0.85
+        assert result.label == "faithful"
+        assert hasattr(result, "explanation")
+        assert hasattr(result, "metadata")
+        assert result.metadata["evaluation_cost"] == 0.001
 
 
 def test_context_precision_evaluator_returns_dict_with_score():
-    """Test context precision evaluator returns dict with score, label, explanation."""
+    """Test context precision evaluator returns Score with score, label, explanation."""
     with (
         patch("deepeval.metrics.ContextualPrecisionMetric") as mock_metric_class,
         patch("deepeval.test_case.LLMTestCase") as mock_test_case_class,
@@ -85,6 +87,8 @@ def test_context_precision_evaluator_returns_dict_with_score():
         mock_metric.success = True
         mock_metric.reason = "Good precision."
         mock_metric.threshold = 0.5
+        mock_metric.evaluation_model = "gpt-4o-mini"
+        mock_metric.evaluation_cost = 0.002
         mock_metric_class.return_value = mock_metric
 
         mock_test_case = MagicMock()
@@ -101,14 +105,15 @@ def test_context_precision_evaluator_returns_dict_with_score():
             expected="Expected answer.",
         )
 
-        assert isinstance(result, dict)
-        assert result["score"] == 0.75
-        assert result["label"] == "precise"
-        assert "explanation" in result
+        assert hasattr(result, "score")
+        assert result.score == 0.75
+        assert result.label == "precise"
+        assert hasattr(result, "explanation")
+        assert result.metadata["evaluation_cost"] == 0.002
 
 
 def test_answer_relevancy_evaluator_returns_dict_with_score():
-    """Test answer relevancy evaluator returns dict with score, label, explanation."""
+    """Test answer relevancy evaluator returns Score with score, label, explanation."""
     with (
         patch("deepeval.metrics.AnswerRelevancyMetric") as mock_metric_class,
         patch("deepeval.test_case.LLMTestCase") as mock_test_case_class,
@@ -121,6 +126,8 @@ def test_answer_relevancy_evaluator_returns_dict_with_score():
         mock_metric.success = True
         mock_metric.reason = "Relevant answer."
         mock_metric.threshold = 0.5
+        mock_metric.evaluation_model = "gpt-4o-mini"
+        mock_metric.evaluation_cost = 0.003
         mock_metric_class.return_value = mock_metric
 
         mock_test_case = MagicMock()
@@ -133,7 +140,8 @@ def test_answer_relevancy_evaluator_returns_dict_with_score():
             output={"answer": "Test answer."},
         )
 
-        assert isinstance(result, dict)
-        assert result["score"] == 0.9
-        assert result["label"] == "relevant"
-        assert "explanation" in result
+        assert hasattr(result, "score")
+        assert result.score == 0.9
+        assert result.label == "relevant"
+        assert hasattr(result, "explanation")
+        assert result.metadata["evaluation_cost"] == 0.003

@@ -180,7 +180,7 @@ def create_faithfulness_evaluator(
         with _suppress_tracing_if_available():
             metric.measure(test_case)
 
-        # Build metadata with failed-only verdicts for storage efficiency
+        # Build metadata with verdicts for analysis
         metadata: dict[str, Any] = {
             "threshold": metric.threshold,
             "success": metric.success,
@@ -188,16 +188,19 @@ def create_faithfulness_evaluator(
             "evaluation_cost": getattr(metric, "evaluation_cost", None),
         }
 
-        # Include verdicts only for failures - these need investigation
-        if not metric.success and hasattr(metric, "verdicts"):
+        # Include verdicts for all results (pass or fail)
+        if hasattr(metric, "verdicts"):
             metadata["verdicts"] = _serialize_verdicts(metric.verdicts)
 
-        return {
-            "score": float(metric.score),
-            "label": "faithful" if metric.success else "unfaithful",
-            "explanation": metric.reason or "",
-            "metadata": metadata,
-        }
+        from phoenix.evals.evaluators import Score
+
+        return Score(
+            name="faithfulness",
+            score=float(metric.score),
+            label="faithful" if metric.success else "unfaithful",
+            explanation=metric.reason or "",
+            metadata=metadata,
+        )
 
     return faithfulness_evaluator
 
@@ -292,7 +295,7 @@ def create_context_precision_evaluator(
         with _suppress_tracing_if_available():
             metric.measure(test_case)
 
-        # Build metadata with failed-only verdicts
+        # Build metadata with verdicts for analysis
         metadata: dict[str, Any] = {
             "threshold": metric.threshold,
             "success": metric.success,
@@ -300,15 +303,19 @@ def create_context_precision_evaluator(
             "evaluation_cost": getattr(metric, "evaluation_cost", None),
         }
 
-        if not metric.success and hasattr(metric, "verdicts"):
+        # Include verdicts for all results (pass or fail)
+        if hasattr(metric, "verdicts"):
             metadata["verdicts"] = _serialize_verdicts(metric.verdicts)
 
-        return {
-            "score": float(metric.score),
-            "label": "precise" if metric.success else "imprecise",
-            "explanation": metric.reason or "",
-            "metadata": metadata,
-        }
+        from phoenix.evals.evaluators import Score
+
+        return Score(
+            name="context_precision",
+            score=float(metric.score),
+            label="precise" if metric.success else "imprecise",
+            explanation=metric.reason or "",
+            metadata=metadata,
+        )
 
     return context_precision_evaluator
 
@@ -403,7 +410,7 @@ def create_context_recall_evaluator(
         with _suppress_tracing_if_available():
             metric.measure(test_case)
 
-        # Build metadata with failed-only verdicts
+        # Build metadata with verdicts for analysis
         metadata: dict[str, Any] = {
             "threshold": metric.threshold,
             "success": metric.success,
@@ -411,15 +418,19 @@ def create_context_recall_evaluator(
             "evaluation_cost": getattr(metric, "evaluation_cost", None),
         }
 
-        if not metric.success and hasattr(metric, "verdicts"):
+        # Include verdicts for all results (pass or fail)
+        if hasattr(metric, "verdicts"):
             metadata["verdicts"] = _serialize_verdicts(metric.verdicts)
 
-        return {
-            "score": float(metric.score),
-            "label": "high_recall" if metric.success else "low_recall",
-            "explanation": metric.reason or "",
-            "metadata": metadata,
-        }
+        from phoenix.evals.evaluators import Score
+
+        return Score(
+            name="context_recall",
+            score=float(metric.score),
+            label="high_recall" if metric.success else "low_recall",
+            explanation=metric.reason or "",
+            metadata=metadata,
+        )
 
     return context_recall_evaluator
 
@@ -503,7 +514,7 @@ def create_answer_relevancy_evaluator(
         with _suppress_tracing_if_available():
             metric.measure(test_case)
 
-        # Build metadata with failed-only verdicts
+        # Build metadata with verdicts for analysis
         metadata: dict[str, Any] = {
             "threshold": metric.threshold,
             "success": metric.success,
@@ -511,14 +522,18 @@ def create_answer_relevancy_evaluator(
             "evaluation_cost": getattr(metric, "evaluation_cost", None),
         }
 
-        if not metric.success and hasattr(metric, "verdicts"):
+        # Include verdicts for all results (pass or fail)
+        if hasattr(metric, "verdicts"):
             metadata["verdicts"] = _serialize_verdicts(metric.verdicts)
 
-        return {
-            "score": float(metric.score),
-            "label": "relevant" if metric.success else "irrelevant",
-            "explanation": metric.reason or "",
-            "metadata": metadata,
-        }
+        from phoenix.evals.evaluators import Score
+
+        return Score(
+            name="answer_relevancy",
+            score=float(metric.score),
+            label="relevant" if metric.success else "irrelevant",
+            explanation=metric.reason or "",
+            metadata=metadata,
+        )
 
     return answer_relevancy_evaluator

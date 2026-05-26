@@ -229,15 +229,26 @@ def export_experiment_results(
     task_runs = experiment.get("task_runs", [])
     evaluation_runs = experiment.get("evaluation_runs", [])
 
-    # Build maps for evaluations and costs
+    # Build maps for evaluations, costs, labels, and verdict breakdown
     eval_map: dict[str, dict[str, float]] = {}
     eval_cost_map: dict[str, dict[str, float]] = {}
+    eval_label_map: dict[str, dict[str, str]] = {}  # DeepEval verdict labels
+    eval_verdicts_map: dict[str, dict[str, str]] = {}  # verdicts as JSON
 
     def _get_attr(obj: Any, key: str, default: Any = None) -> Any:
         """Get attribute from both dict-like and object types."""
         if isinstance(obj, dict):
             return obj.get(key, default)
         return getattr(obj, key, default)
+
+    def _extract_verdict(v: Any) -> dict[str, Any]:
+        """Extract verdict and reason from dict or object."""
+        if isinstance(v, dict):
+            return {"verdict": v.get("verdict"), "reason": v.get("reason")}
+        return {
+            "verdict": getattr(v, "verdict", None),
+            "reason": getattr(v, "reason", None),
+        }
 
     for eval_run in evaluation_runs:
         run_id = _get_attr(eval_run, "experiment_run_id", "")
@@ -247,6 +258,7 @@ def export_experiment_results(
                 for r in result:
                     name = _get_attr(r, "name", "")
                     score = _get_attr(r, "score")
+                    label = _get_attr(r, "label", "")
                     metadata = _get_attr(r, "metadata", {})
                     eval_cost = _get_attr(metadata, "evaluation_cost", None)
 
@@ -254,6 +266,22 @@ def export_experiment_results(
                         if run_id not in eval_map:
                             eval_map[run_id] = {}
                         eval_map[run_id][name] = float(score)
+
+                    # Store DeepEval verdict label
+                    if name and label:
+                        if run_id not in eval_label_map:
+                            eval_label_map[run_id] = {}
+                        eval_label_map[run_id][name] = str(label)
+
+                    # Store verdicts breakdown (individual yes/no/idk verdicts)
+                    verdicts = _get_attr(metadata, "verdicts", None)
+                    if name and verdicts:
+                        if run_id not in eval_verdicts_map:
+                            eval_verdicts_map[run_id] = {}
+                        verdict_list = [_extract_verdict(v) for v in verdicts]
+                        eval_verdicts_map[run_id][name] = json.dumps(
+                            verdict_list, separators=(",", ":")
+                        )
 
                     # Store evaluation cost by metric
                     if name and eval_cost is not None:
@@ -264,6 +292,7 @@ def export_experiment_results(
             else:
                 name = _get_attr(result, "name", "")
                 score = _get_attr(result, "score")
+                label = _get_attr(result, "label", "")
                 metadata = _get_attr(result, "metadata", {})
                 eval_cost = _get_attr(metadata, "evaluation_cost", None)
 
@@ -271,6 +300,22 @@ def export_experiment_results(
                     if run_id not in eval_map:
                         eval_map[run_id] = {}
                     eval_map[run_id][name] = float(score)
+
+                # Store DeepEval verdict label
+                if name and label:
+                    if run_id not in eval_label_map:
+                        eval_label_map[run_id] = {}
+                    eval_label_map[run_id][name] = str(label)
+
+                # Store verdicts breakdown
+                verdicts = _get_attr(metadata, "verdicts", None)
+                if name and verdicts:
+                    if run_id not in eval_verdicts_map:
+                        eval_verdicts_map[run_id] = {}
+                    verdict_list = [_extract_verdict(v) for v in verdicts]
+                    eval_verdicts_map[run_id][name] = json.dumps(
+                        verdict_list, separators=(",", ":")
+                    )
 
                 if name and eval_cost is not None:
                     if run_id not in eval_cost_map:
@@ -332,8 +377,10 @@ def export_experiment_results(
         else:
             generated_answer = str(output) if output else ""
 
-        # Get evaluation scores and judge costs
+        # Get evaluation scores, labels, verdict breakdown, and judge costs
         eval_scores = eval_map.get(run_id, {})
+        eval_labels = eval_label_map.get(run_id, {})
+        eval_verdicts = eval_verdicts_map.get(run_id, {})
         judge_costs = eval_cost_map.get(run_id, {})
 
         # Sum all judge costs for this row
@@ -344,6 +391,13 @@ def export_experiment_results(
         if app_cost_usd is not None:
             total_cost_usd = app_cost_usd + judge_cost_usd
 
+        # Get timing from task_run if available
+        total_ms = 0
+        if hasattr(task_run, "latency"):
+            total_ms = int(getattr(task_run, "latency", 0) or 0)
+        elif isinstance(task_run, dict):
+            total_ms = int(task_run.get("latency", 0) or 0)
+
         row = {
             "experiment_id": exp_id,
             "query_id": query_id,
@@ -352,11 +406,18 @@ def export_experiment_results(
             "generated_answer": generated_answer,
             "relevant_passage_retrieved": relevant_passage,
             "faithfulness_score": eval_scores.get("faithfulness", 0.0),
+            "faithfulness_label": eval_labels.get("faithfulness", ""),
+            "faithfulness_verdicts": eval_verdicts.get("faithfulness", ""),
             "context_precision_score": eval_scores.get("context_precision", 0.0),
+            "context_precision_label": eval_labels.get("context_precision", ""),
+            "context_precision_verdicts": eval_verdicts.get("context_precision", ""),
             "context_recall_score": eval_scores.get("context_recall", 0.0),
+            "context_recall_label": eval_labels.get("context_recall", ""),
+            "context_recall_verdicts": eval_verdicts.get("context_recall", ""),
             "answer_relevancy_score": eval_scores.get("answer_relevancy", 0.0),
-            "judge_verdict": "",
-            "total_ms": 0,
+            "answer_relevancy_label": eval_labels.get("answer_relevancy", ""),
+            "answer_relevancy_verdicts": eval_verdicts.get("answer_relevancy", ""),
+            "total_ms": total_ms,
             "error": error,
             # Cost columns
             "app_cost_usd": app_cost_usd,

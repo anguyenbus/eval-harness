@@ -312,6 +312,16 @@ def _run_phoenix_native(
     deepeval_config = get_deepeval_config(config)
     judge_model = deepeval_config["judge_model"]
 
+    # Setup OpenInference auto-instrumentation for OpenAI (app cost tracking)
+    # This instruments all OpenAI client calls to capture token counts and costs
+    try:
+        from openinference.instrumentation.openai import OpenAIInstrumentor
+
+        OpenAIInstrumentor().instrument()
+        print("OpenAI auto-instrumentation enabled")
+    except ImportError:
+        print("WARN: OpenInference OpenAI instrumentation not available")
+
     print("Running Phoenix Native experiment...")
     print(f"  Phoenix endpoint: {phoenix_config['endpoint']}")
     print(f"  Dataset slice: {args.slice}")
