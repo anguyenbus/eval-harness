@@ -41,6 +41,7 @@ def get_phoenix_config(
             - enabled: bool (whether Phoenix tracing is enabled)
             - endpoint: str (Phoenix server URL)
             - export_path: str (path for buffering traces)
+            - mode: str ("spans" or "native", defaults to "spans")
 
     Example:
         >>> config = load_config(Path("eval_config.yaml"))
@@ -59,11 +60,13 @@ def get_phoenix_config(
     enabled = _resolve_enabled(phoenix_yaml, cli_enabled)
     endpoint = _resolve_endpoint(phoenix_yaml, cli_endpoint)
     export_path = _resolve_export_path(phoenix_yaml)
+    mode = _resolve_mode(phoenix_yaml)
 
     return {
         "enabled": enabled,
         "endpoint": endpoint,
         "export_path": export_path,
+        "mode": mode,
     }
 
 
@@ -124,6 +127,30 @@ def _resolve_endpoint(
     return DEFAULT_ENDPOINT
 
 
+@beartype
+def _resolve_mode(phoenix_yaml: Dict[str, Any]) -> str:
+    """
+    Resolve Phoenix mode with precedence.
+
+    Args:
+        phoenix_yaml: Phoenix section from YAML config.
+
+    Returns:
+        Phoenix mode: "spans" (manual spans) or "native" (experiment API).
+
+    """
+    # YAML config
+    yaml_mode = phoenix_yaml.get("mode", "spans")
+
+    # Validate
+    if yaml_mode not in ("spans", "native"):
+        print(f"[WARN] Invalid phoenix mode '{yaml_mode}', defaulting to 'spans'")
+        return "spans"
+
+    return yaml_mode
+
+
+@beartype
 def _resolve_export_path(phoenix_yaml: Dict[str, Any]) -> str:
     """
     Resolve export path with precedence.

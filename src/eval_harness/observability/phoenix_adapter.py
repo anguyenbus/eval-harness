@@ -9,6 +9,10 @@ span's context, it automatically becomes a child.
 
 Our challenge: The RAG pipeline is spread across multiple function calls.
 Solution: Use tracer.start_as_current_span() which properly propagates context.
+
+NOTE: We do NOT auto-instrument OpenAI. LLM judge calls from DeepEval are
+internal implementation details - the evaluation span already captures the
+metric scores and reasoning which is what users care about.
 """
 
 from __future__ import annotations
@@ -55,6 +59,10 @@ class PhoenixAdapter:
         ...         with adapter.rag_query_span(query) as trace_id:
         ...             adapter.retrieval_span(trace_id, ...)
         ...             adapter.evaluation_span(trace_id, ...)
+
+    NOTE: LLM judge internal calls (DeepEval metrics) are NOT traced - only
+    the final evaluation span with scores and reasoning. This keeps traces
+    focused on user-visible behavior rather than implementation details.
 
     """
 
@@ -150,9 +158,6 @@ class PhoenixAdapter:
 
             self._tracer = self._tracer_provider.get_tracer("eval-harness")
 
-            # Instrument OpenAI to capture RAGAS's internal LLM calls
-            self._instrument_openai()
-
         except Exception as e:
             import sys
 
@@ -162,26 +167,6 @@ class PhoenixAdapter:
                 file=sys.stderr,
             )
             self._tracer = None
-
-    def _instrument_openai(self) -> None:
-        """
-        Instrument OpenAI to capture RAGAS internal LLM judge calls.
-
-        NOTE: RAGAS currently only supports OpenAI as the LLM backend.
-        When Bedrock support is added, we'll need to add Anthropic instrumentor.
-        """
-        try:
-            from openinference.instrumentation.openai import OpenAIInstrumentor
-
-            instrumentor = OpenAIInstrumentor()
-            if not instrumentor.is_instrumented_by_opentelemetry:
-                instrumentor.instrument()
-                print("[INFO] OpenAI instrumentor enabled")
-                print("       RAGAS internal LLM calls will appear in Phoenix traces")
-        except Exception as e:
-            import sys
-
-            print(f"[WARN] OpenAI instrumentation failed: {e}", file=sys.stderr)
 
     @beartype
     def is_connected(self) -> bool:
@@ -297,10 +282,9 @@ class PhoenixAdapter:
         """
         Start a root RAG query span (non-context-manager version).
 
-        NOTE: For proper parent-child relationships in Phoenix UI, prefer
-        using the rag_query_span() context manager. This version creates
-        a root span but child spans won't automatically become children
-        unless they're called while this span is active.
+        NOTE: This sets the span as current so child spans created within
+        the same call context will be linked. For automatic cleanup, use
+        the rag_query_span() context manager instead.
 
         Args:
             question: The user question.
@@ -312,12 +296,12 @@ class PhoenixAdapter:
         trace_id = str(uuid.uuid4())
 
         if self._tracer:
-            span = self._tracer.start_span(
+            # Use start_as_current_span to set as current for child spans
+            self._active_root_span = self._tracer.start_as_current_span(
                 name="rag_query", openinference_span_kind=CHAIN
             )
-            span.set_attribute("question", question)
-            span.set_attribute("input", question)
-            self._active_root_span = span
+            self._active_root_span.set_attribute("question", question)
+            self._active_root_span.set_attribute("input", question)
 
         return trace_id
 
@@ -402,18 +386,22 @@ class PhoenixAdapter:
     def start_evaluation_span(
         self,
         trace_id: str,
-        ragas_metrics: dict[str, float],
+        evaluation_metrics: dict[str, float],
         verdict: str | None = None,
         reasoning: dict[str, Any] | None = None,
     ) -> None:
         """
-        Create evaluation span (EVALUATOR kind - LLM judge via RAGAS/DeepEval).
+        Create evaluation span (EVALUATOR kind - LLM judge via DeepEval).
 
         If called within rag_query_span context, becomes a child span automatically.
 
+        Span output format (prominently displayed in Phoenix UI):
+            - Human-readable summary with scores, verdicts, key reasoning
+            - Span events for detailed verdicts (clickable in Events tab)
+
         Args:
             trace_id: Parent trace ID (for tracking).
-            ragas_metrics: Dictionary of metric scores.
+            evaluation_metrics: Dictionary of metric scores.
             verdict: Optional verdict string (PASS/NEEDS_REVIEW/ERROR).
             reasoning: Optional full reasoning from DeepEval with keys:
                 - metric_name.reason: L1 overall explanation
@@ -425,7 +413,7 @@ class PhoenixAdapter:
         self._evaluations.append(
             {
                 "trace_id": trace_id,
-                "metrics": ragas_metrics,
+                "metrics": evaluation_metrics,
             }
         )
 
@@ -439,43 +427,141 @@ class PhoenixAdapter:
             if verdict:
                 span.set_attribute("evaluation.verdict", verdict)
 
-            # Build output summary for Phoenix UI
-            metrics_summary = json.dumps(
-                {k: round(v, 4) for k, v in ragas_metrics.items()}
+            # Build formatted output for Phoenix UI (prominently displayed)
+            formatted_output = self._format_evaluation_output(
+                evaluation_metrics, verdict, reasoning
             )
-            span.set_attribute("output.value", metrics_summary)
+            span.set_attribute("output.value", formatted_output)
 
-            # Individual metric scores
-            for metric_name, score in ragas_metrics.items():
+            # Individual metric scores (for machine-readable filtering)
+            for metric_name, score in evaluation_metrics.items():
                 span.set_attribute(f"evaluation.{metric_name}", score)
 
-            # Add reasoning data if provided (DeepEval full reasoning)
+            # Add span events for detailed verdicts (clickable in Events tab)
+            if reasoning:
+                self._add_evaluation_events(span, reasoning)
+
+            # Store raw reasoning as attributes (for export/analysis)
             if reasoning:
                 for metric_name, metric_reasoning in reasoning.items():
-                    # Add L1: overall reason
+                    # L1: overall reason
                     if reason := metric_reasoning.get("reason"):
                         span.set_attribute(f"evaluation.{metric_name}.reason", reason)
 
-                    # Add L2: verdicts (per-chunk judgments)
+                    # L2: verdicts count
                     if verdicts := metric_reasoning.get("verdicts"):
-                        # Store as JSON for Phoenix UI display
-                        span.set_attribute(
-                            f"evaluation.{metric_name}.verdicts",
-                            json.dumps(verdicts),
-                        )
-                        # Also store count for quick filtering
                         span.set_attribute(
                             f"evaluation.{metric_name}.verdicts_count",
                             len(verdicts),
                         )
 
-                    # Add L3: claims/truths (for Faithfulness)
+                    # L3: claims/truths (for Faithfulness) - store as JSON
                     for attr in ("claims", "truths", "statements"):
                         if items := metric_reasoning.get(attr):
                             span.set_attribute(
                                 f"evaluation.{metric_name}.{attr}",
                                 json.dumps(items),
                             )
+
+    @beartype
+    def _format_evaluation_output(
+        self,
+        metrics: dict[str, float],
+        verdict: str | None,
+        reasoning: dict[str, Any] | None,
+    ) -> str:
+        """
+        Format evaluation results for Phoenix UI display.
+
+        Creates human-readable summary with scores, verdict indicators, and
+        top-level reasoning. This appears prominently in span detail view.
+
+        """
+        lines = ["=== EVALUATION RESULTS ==="]
+
+        # Score display with pass/fail indicators
+        score_display = []
+        for name, score in metrics.items():
+            # Clean metric name for display
+            display_name = name.replace("_", " ").title()
+            # Threshold indicators (common defaults)
+            threshold = 0.7 if name in ("faithfulness", "faithfulness_score") else 0.5
+            indicator = "✓" if score >= threshold else "✗"
+            score_display.append(f"{display_name}: {score:.2f} {indicator}")
+
+        if score_display:
+            lines.append(" | ".join(score_display))
+
+        # Verdict
+        if verdict:
+            lines.append(f"\nVERDICT: {verdict}")
+
+        # Add top-level reasoning for each metric
+        if reasoning:
+            for metric_name, metric_reasoning in reasoning.items():
+                if reason := metric_reasoning.get("reason"):
+                    # Truncate very long reasons
+                    display_reason = reason[:200] + "..." if len(reason) > 200 else reason
+                    display_name = metric_name.replace("_", " ").upper()
+                    lines.append(f"\n{display_name}: {display_reason}")
+
+                    # Add verdicts summary if available
+                    if verdicts := metric_reasoning.get("verdicts"):
+                        passed = sum(1 for v in verdicts if str(v.get("verdict", "")).lower() in ("yes", "true", "1"))
+                        total = len(verdicts)
+                        lines.append(f"  ({passed}/{total} items passed)")
+
+        return "\n".join(lines)
+
+    @beartype
+    def _add_evaluation_events(
+        self,
+        span: Any,
+        reasoning: dict[str, Any],
+    ) -> None:
+        """
+        Add span events for detailed evaluation verdicts.
+
+        Events appear in the Events tab of Phoenix UI and are useful for
+        seeing per-chunk or per-claim judgments without cluttering attributes.
+
+        """
+        for metric_name, metric_reasoning in reasoning.items():
+            # Add verdicts as events (one per item)
+            if verdicts := metric_reasoning.get("verdicts"):
+                for i, verdict in enumerate(verdicts):
+                    verdict_text = verdict.get("verdict", "unknown")
+                    reason_text = verdict.get("reason", "")
+
+                    # Create event name
+                    event_name = f"{metric_name}_verdict_{i+1}"
+
+                    # Event attributes
+                    event_attrs = {
+                        "metric": metric_name,
+                        "item_index": i,
+                        "verdict": verdict_text,
+                    }
+                    if reason_text:
+                        event_attrs["reason"] = reason_text[:500]  # Limit size
+
+                    span.add_event(name=event_name, attributes=event_attrs)
+
+            # Add claims as events for Faithfulness
+            if claims := metric_reasoning.get("claims"):
+                for i, claim in enumerate(claims):
+                    claim_text = claim.get("claim_text", claim.get("text", str(claim)))
+                    is_verified = claim.get("is_verified", claim.get("verified", False))
+
+                    span.add_event(
+                        name=f"faithfulness_claim_{i+1}",
+                        attributes={
+                            "metric": "faithfulness",
+                            "claim_index": i,
+                            "claim_text": claim_text[:500],
+                            "verified": str(is_verified),
+                        },
+                    )
 
     @beartype
     def export_traces(self) -> dict[str, Any]:

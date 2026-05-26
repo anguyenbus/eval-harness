@@ -3,21 +3,49 @@ DeepEval adapter for transforming eval-harness output to DeepEval format.
 
 This module provides functionality to transform standard RAG query output
 into DeepEval LLMTestCase format for LLM-judge evaluation.
+
+PHOENIX NATIVE MIGRATION: Trace suppression for DeepEval LLM judge calls.
 """
 
 from __future__ import annotations
 
 import asyncio
 import time
+from contextlib import contextmanager
 
 from beartype import beartype
-from beartype.typing import Any, Dict, Final, List
+from beartype.typing import Any, Dict, Final, Generator, List
 
 # Constants
 DEFAULT_LLM_PROVIDER: Final[str] = "openai"
 DEFAULT_JUDGE_MODEL: Final[str] = "gpt-4o-mini"
 DEFAULT_TEMPERATURE: Final[float] = 0.0
 DEFAULT_MAX_CONCURRENT: Final[int] = 10
+
+
+@beartype
+def _suppress_tracing_if_available() -> Any:
+    """
+    Get Phoenix suppress_tracing context manager if available.
+
+    Returns a no-op context manager if Phoenix is not installed.
+
+    This prevents DeepEval LLM judge calls from creating noisy child spans
+    in Phoenix traces.
+
+    """
+    try:
+        from phoenix.core.tracing import suppress_tracing
+
+        return suppress_tracing()
+    except (ImportError, AttributeError):
+        # Phoenix not installed or suppress_tracing not available
+        # Return no-op context manager
+        @contextmanager
+        def _noop_context() -> Generator[None, None, None]:
+            yield
+
+        return _noop_context()
 
 
 @beartype
@@ -83,6 +111,9 @@ class DeepEvalEvaluator:
     - ContextualPrecision: Measures signal-to-noise in retrieved contexts
     - ContextualRecall: Evaluates coverage of relevant information
     - AnswerRelevancy: Assesses directness of response to question
+
+    PHOENIX NATIVE MIGRATION: Uses suppress_tracing() to prevent LLM judge
+    calls from polluting Phoenix traces with noisy child spans.
 
     Attributes:
         _metrics: Dictionary of DeepEval metric instances.
@@ -162,6 +193,9 @@ class DeepEvalEvaluator:
         all configured metrics (Faithfulness, ContextualPrecision,
         ContextualRecall, AnswerRelevancy).
 
+        PHOENIX NATIVE MIGRATION: Uses suppress_tracing() to prevent LLM judge
+        calls from creating noisy child spans.
+
         Args:
             rag_output: Dictionary conforming to legal_rag_bench schema.
             reference_answer: Reference answer text from the dataset.
@@ -188,7 +222,8 @@ class DeepEvalEvaluator:
         if "faithfulness" in self._metrics:
             try:
                 metric = self._metrics["faithfulness"]
-                metric.measure(test_case)
+                with _suppress_tracing_if_available():
+                    metric.measure(test_case)
                 results["faithfulness"] = float(metric.score)
             except Exception as e:
                 import sys
@@ -200,7 +235,8 @@ class DeepEvalEvaluator:
         if "context_precision" in self._metrics:
             try:
                 metric = self._metrics["context_precision"]
-                metric.measure(test_case)
+                with _suppress_tracing_if_available():
+                    metric.measure(test_case)
                 results["context_precision"] = float(metric.score)
             except Exception as e:
                 import sys
@@ -212,7 +248,8 @@ class DeepEvalEvaluator:
         if "context_recall" in self._metrics:
             try:
                 metric = self._metrics["context_recall"]
-                metric.measure(test_case)
+                with _suppress_tracing_if_available():
+                    metric.measure(test_case)
                 results["context_recall"] = float(metric.score)
             except Exception as e:
                 import sys
@@ -224,7 +261,8 @@ class DeepEvalEvaluator:
         if "answer_relevancy" in self._metrics:
             try:
                 metric = self._metrics["answer_relevancy"]
-                metric.measure(test_case)
+                with _suppress_tracing_if_available():
+                    metric.measure(test_case)
                 results["answer_relevancy"] = float(metric.score)
             except Exception as e:
                 import sys
@@ -244,6 +282,9 @@ class DeepEvalEvaluator:
         Compute DeepEval metrics for multiple RAG outputs asynchronously.
 
         Uses asyncio.Semaphore for concurrency control to prevent rate limiting.
+
+        PHOENIX NATIVE MIGRATION: Uses suppress_tracing() to prevent LLM judge
+        calls from creating noisy child spans.
 
         Args:
             rag_outputs: List of dictionaries conforming to legal_rag_bench schema.
@@ -279,7 +320,12 @@ class DeepEvalEvaluator:
                         metric = self._metrics["faithfulness"]
                         # DeepEval metrics are synchronous, run in thread pool
                         loop = asyncio.get_event_loop()
-                        await loop.run_in_executor(None, metric.measure, test_case)
+
+                        def measure_with_suppression():
+                            with _suppress_tracing_if_available():
+                                metric.measure(test_case)
+
+                        await loop.run_in_executor(None, measure_with_suppression)
                         results["faithfulness"] = float(metric.score)
                     except Exception as e:
                         import sys
@@ -291,7 +337,12 @@ class DeepEvalEvaluator:
                     try:
                         metric = self._metrics["context_precision"]
                         loop = asyncio.get_event_loop()
-                        await loop.run_in_executor(None, metric.measure, test_case)
+
+                        def measure_with_suppression():
+                            with _suppress_tracing_if_available():
+                                metric.measure(test_case)
+
+                        await loop.run_in_executor(None, measure_with_suppression)
                         results["context_precision"] = float(metric.score)
                     except Exception as e:
                         import sys
@@ -303,7 +354,12 @@ class DeepEvalEvaluator:
                     try:
                         metric = self._metrics["context_recall"]
                         loop = asyncio.get_event_loop()
-                        await loop.run_in_executor(None, metric.measure, test_case)
+
+                        def measure_with_suppression():
+                            with _suppress_tracing_if_available():
+                                metric.measure(test_case)
+
+                        await loop.run_in_executor(None, measure_with_suppression)
                         results["context_recall"] = float(metric.score)
                     except Exception as e:
                         import sys
@@ -315,7 +371,12 @@ class DeepEvalEvaluator:
                     try:
                         metric = self._metrics["answer_relevancy"]
                         loop = asyncio.get_event_loop()
-                        await loop.run_in_executor(None, metric.measure, test_case)
+
+                        def measure_with_suppression():
+                            with _suppress_tracing_if_available():
+                                metric.measure(test_case)
+
+                        await loop.run_in_executor(None, measure_with_suppression)
                         results["answer_relevancy"] = float(metric.score)
                     except Exception as e:
                         import sys
@@ -357,10 +418,17 @@ class DeepEvalEvaluator:
         extracted = []
         for v in verdicts:
             try:
-                verdict_dict = v.model_dump() if hasattr(v, "model_dump") else dict(v)
+                if hasattr(v, "model_dump"):
+                    verdict_dict = v.model_dump()
+                elif isinstance(v, dict):
+                    verdict_dict = v
+                elif hasattr(v, "__dict__"):
+                    verdict_dict = vars(v)
+                else:
+                    verdict_dict = {"verdict": str(v)}
                 extracted.append(verdict_dict)
-            except (AttributeError, TypeError) as e:
-                # Fallback to string representation if model_dump fails
+            except Exception as e:
+                # Fallback to string representation on any error
                 extracted.append({"verdict": str(v), "error": str(e)})
 
         return extracted
@@ -383,11 +451,18 @@ class DeepEvalEvaluator:
             items = getattr(metric, attr, None)
             if items:
                 try:
-                    result[attr] = [
-                        i.model_dump() if hasattr(i, "model_dump") else dict(i)
-                        for i in items
-                    ]
-                except (AttributeError, TypeError) as e:
+                    converted = []
+                    for i in items:
+                        if hasattr(i, "model_dump"):
+                            converted.append(i.model_dump())
+                        elif isinstance(i, dict):
+                            converted.append(i)
+                        elif hasattr(i, "__dict__"):
+                            converted.append(vars(i))
+                        else:
+                            converted.append({"text": str(i)})
+                    result[attr] = converted
+                except Exception as e:
                     # Fallback to string representation on error
                     result[attr] = [{"text": str(i), "error": str(e)} for i in items]
 
@@ -404,6 +479,9 @@ class DeepEvalEvaluator:
 
         Same as compute_metrics but includes metric_computation_time_ms
         in results.
+
+        PHOENIX NATIVE MIGRATION: Uses suppress_tracing() to prevent LLM judge
+        calls from creating noisy child spans.
 
         Args:
             rag_output: Dictionary conforming to legal_rag_bench schema.
@@ -439,6 +517,9 @@ class DeepEvalEvaluator:
         - L2: metric.verdicts (per-chunk yes/no with rationale)
         - L3: metric.claims/truths (detailed claim analysis for Faithfulness)
 
+        PHOENIX NATIVE MIGRATION: Uses suppress_tracing() to prevent LLM judge
+        calls from creating noisy child spans.
+
         Args:
             rag_output: Dictionary conforming to legal_rag_bench schema.
             reference_answer: Reference answer text from the dataset.
@@ -462,7 +543,8 @@ class DeepEvalEvaluator:
         if "faithfulness" in self._metrics:
             try:
                 metric = self._metrics["faithfulness"]
-                metric.measure(test_case)
+                with _suppress_tracing_if_available():
+                    metric.measure(test_case)
                 scores["faithfulness"] = float(metric.score)
 
                 # Extract reasoning
@@ -491,7 +573,8 @@ class DeepEvalEvaluator:
         if "context_precision" in self._metrics:
             try:
                 metric = self._metrics["context_precision"]
-                metric.measure(test_case)
+                with _suppress_tracing_if_available():
+                    metric.measure(test_case)
                 scores["context_precision"] = float(metric.score)
 
                 # Extract reasoning - verdicts show which chunks were relevant
@@ -514,7 +597,8 @@ class DeepEvalEvaluator:
         if "context_recall" in self._metrics:
             try:
                 metric = self._metrics["context_recall"]
-                metric.measure(test_case)
+                with _suppress_tracing_if_available():
+                    metric.measure(test_case)
                 scores["context_recall"] = float(metric.score)
 
                 reasoning["context_recall"] = {
@@ -533,7 +617,8 @@ class DeepEvalEvaluator:
         if "answer_relevancy" in self._metrics:
             try:
                 metric = self._metrics["answer_relevancy"]
-                metric.measure(test_case)
+                with _suppress_tracing_if_available():
+                    metric.measure(test_case)
                 scores["answer_relevancy"] = float(metric.score)
 
                 reasoning["answer_relevancy"] = {

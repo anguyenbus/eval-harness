@@ -82,9 +82,10 @@ class TestPhoenixAdapter:
         trace_id = adapter.start_rag_query_span("Test question")
 
         # These should not raise exceptions
+        # Updated to match current API signature (no embeddings parameter)
         adapter.start_retrieval_span(
             trace_id=trace_id,
-            embeddings=[0.1, 0.2, 0.3],
+            query_text="Test query",
             chunks=[{"text": "chunk1"}],
             k=5,
             timing_ms=100.0,
@@ -100,7 +101,7 @@ class TestPhoenixAdapter:
 
         adapter.start_evaluation_span(
             trace_id=trace_id,
-            ragas_metrics={
+            evaluation_metrics={
                 "faithfulness": 0.9,
                 "context_precision": 0.8,
                 "context_recall": 0.7,
@@ -115,4 +116,5 @@ class TestPhoenixAdapter:
         assert "_project_name" in PhoenixAdapter.__slots__
         assert "_enabled" in PhoenixAdapter.__slots__
         assert "_export_path" in PhoenixAdapter.__slots__
-        assert "_client" in PhoenixAdapter.__slots__
+        # Updated slots - _client was removed in favor of _tracer_provider
+        assert "_tracer_provider" in PhoenixAdapter.__slots__
