@@ -196,32 +196,130 @@ def run_phoenix_experiment(
 def export_experiment_results(
     experiment: RanExperiment | dict[str, Any],
     output_dir: Path,
-    dataset_examples: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """
     Export experiment results to CSV and JSON.
 
-    Maintains backward compatibility with existing eval-rag CSV format.
+    Uses experiment.task_runs and experiment.evaluation_runs from Phoenix.
 
     Args:
-        experiment: RanExperiment instance from Phoenix (dict-like or object).
+        experiment: RanExperiment dict from Phoenix run_experiment().
         output_dir: Output directory for results.
-        dataset_examples: Optional original dataset examples for mapping.
 
     Returns:
         Dictionary with paths to exported files.
 
     """
+    import pandas as pd
+
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Handle both dict and object types for experiment
-    if isinstance(experiment, dict):
-        base_name = experiment.get("experiment_name", "experiment")
-    else:
-        base_name = getattr(experiment, "experiment_name", "experiment")
+    # Extract experiment data
+    exp_id = experiment.get("experiment_id", "")
+    dataset_id = experiment.get("dataset_id", "")
+    base_name = experiment.get("experiment_name", f"experiment-{exp_id}")
 
-    # Build results DataFrame from experiment data
-    results_df = _get_experiment_dataframe(experiment, dataset_examples)
+    # Get task_runs and evaluation_runs
+    task_runs = experiment.get("task_runs", [])
+    evaluation_runs = experiment.get("evaluation_runs", [])
+
+    # Build a map of run_id -> evaluations
+    eval_map: dict[str, dict[str, float]] = {}
+
+    def _get_attr(obj: Any, key: str, default: Any = None) -> Any:
+        """Get attribute from both dict-like and object types."""
+        if isinstance(obj, dict):
+            return obj.get(key, default)
+        return getattr(obj, key, default)
+
+    for eval_run in evaluation_runs:
+        run_id = _get_attr(eval_run, "experiment_run_id", "")
+        result = _get_attr(eval_run, "result")
+        if result and run_id:
+            if isinstance(result, list):
+                for r in result:
+                    name = _get_attr(r, "name", "")
+                    score = _get_attr(r, "score")
+                    if name and score is not None:
+                        if run_id not in eval_map:
+                            eval_map[run_id] = {}
+                        eval_map[run_id][name] = float(score)
+            else:
+                name = _get_attr(result, "name", "")
+                score = _get_attr(result, "score")
+                if name and score is not None:
+                    if run_id not in eval_map:
+                        eval_map[run_id] = {}
+                    eval_map[run_id][name] = float(score)
+
+    # Fetch dataset examples to get input/expected/metadata
+    example_map: dict[str, dict[str, Any]] = {}
+    if dataset_id:
+        try:
+            from phoenix.client import Client
+            client = Client(base_url="http://localhost:6006")
+            dataset = client.datasets.get_dataset(dataset=dataset_id)
+            for example in dataset.examples:
+                ex_id = example.get("id", "")
+                example_map[ex_id] = example
+        except Exception:
+            pass  # Dataset fetch failed, continue without it
+
+    # Build rows
+    rows = []
+    for task_run in task_runs:
+        run_id = _get_attr(task_run, "id", "")
+        example_id = _get_attr(task_run, "dataset_example_id", "")
+        output = _get_attr(task_run, "output", {})
+        error = _get_attr(task_run, "error") or ""
+
+        # Get example data
+        example = example_map.get(example_id, {})
+        input_dict = example.get("input", {}) if isinstance(example, dict) else {}
+        expected_dict = example.get("output", {}) if isinstance(example, dict) else {}
+        metadata = example.get("metadata", {}) if isinstance(example, dict) else {}
+
+        # Extract values
+        question = (
+            input_dict.get("input", "") if isinstance(input_dict, dict) else ""
+        )
+        gold_answer = (
+            expected_dict.get("expected", "")
+            if isinstance(expected_dict, dict)
+            else ""
+        )
+        query_id = (
+            metadata.get("query_id", "") if isinstance(metadata, dict) else ""
+        )
+        relevant_passage = (
+            metadata.get("relevant_passage_id", "")
+            if isinstance(metadata, dict)
+            else ""
+        )
+
+        # Extract generated answer
+        if isinstance(output, dict):
+            generated_answer = output.get("answer", "")
+        else:
+            generated_answer = str(output) if output else ""
+
+        eval_scores = eval_map.get(run_id, {})
+        rows.append({
+            "query_id": query_id,
+            "question": question,
+            "gold_answer": gold_answer,
+            "generated_answer": generated_answer,
+            "relevant_passage_retrieved": relevant_passage,
+            "faithfulness_score": eval_scores.get("faithfulness", 0.0),
+            "context_precision_score": eval_scores.get("context_precision", 0.0),
+            "context_recall_score": eval_scores.get("context_recall", 0.0),
+            "answer_relevancy_score": eval_scores.get("answer_relevancy", 0.0),
+            "judge_verdict": "",
+            "total_ms": 0,
+            "error": error,
+        })
+
+    results_df = pd.DataFrame(rows)
 
     # Export to CSV
     csv_path = output_dir / f"{base_name}_results.csv"
@@ -238,128 +336,6 @@ def export_experiment_results(
         "csv_path": str(csv_path),
         "json_path": str(json_path),
     }
-
-
-@beartype
-def _get_experiment_dataframe(
-    experiment: RanExperiment | dict[str, Any],
-    dataset_examples: list[dict[str, Any]] | None = None,
-) -> Any:
-    """
-    Extract experiment results as pandas DataFrame.
-
-    Maps Phoenix experiment results to eval-rag CSV format.
-
-    Args:
-        experiment: RanExperiment instance (dict-like or object).
-        dataset_examples: Optional dataset examples for metadata.
-
-    Returns:
-        pandas DataFrame with columns matching eval-rag format.
-
-    """
-    import pandas as pd
-
-    rows = []
-
-    # Map dataset examples by their ID/index
-    example_map = {}
-    if dataset_examples:
-        for i, example in enumerate(dataset_examples):
-            example_map[i] = example
-
-    # Extract task_runs and evaluation_runs (handle both dict and object)
-    if isinstance(experiment, dict):
-        task_runs = experiment.get("task_runs", [])
-        eval_runs = experiment.get("evaluation_runs", [])
-    else:
-        task_runs = getattr(experiment, "task_runs", [])
-        eval_runs = getattr(experiment, "evaluation_runs", [])
-
-    # Helper to extract values from both dict and object types
-    def _get_attr(obj: Any, key: str, default: Any = None) -> Any:
-        """Get attribute from both dict-like and object types."""
-        if isinstance(obj, dict):
-            return obj.get(key, default)
-        return getattr(obj, key, default)
-
-    # Create a map of experiment_run_id to evaluations
-    eval_map: dict[str, dict[str, Any]] = {}
-    for eval_run in eval_runs:
-        run_id = _get_attr(eval_run, "experiment_run_id")
-        result = _get_attr(eval_run, "result")
-
-        if result and run_id:
-            # Result might be a single evaluation or a list
-            if isinstance(result, list):
-                for r in result:
-                    name = _get_attr(r, "name", "")
-                    score = _get_attr(r, "score")
-                    if name and score is not None:
-                        if run_id not in eval_map:
-                            eval_map[run_id] = {}
-                        eval_map[run_id][name] = score
-            else:
-                name = _get_attr(result, "name", "")
-                score = _get_attr(result, "score")
-                if name and score is not None:
-                    if run_id not in eval_map:
-                        eval_map[run_id] = {}
-                    eval_map[run_id][name] = score
-
-    # Build rows
-    for i, task_run in enumerate(task_runs):
-        run_id = _get_attr(task_run, "id")
-        output = _get_attr(task_run, "output", {})
-        error = _get_attr(task_run, "error", "")
-
-        # Get input and expected from task_run (Phoenix provides these as dicts)
-        input_dict = _get_attr(task_run, "input", {})
-        expected_dict = _get_attr(task_run, "expected_output", {})
-        metadata = _get_attr(task_run, "metadata", {})
-
-        # Extract values from dicts
-        if isinstance(input_dict, dict):
-            input_val = input_dict.get("input", "")
-        else:
-            input_val = str(input_dict)
-
-        if isinstance(expected_dict, dict):
-            expected_val = expected_dict.get("expected", "")
-        else:
-            expected_val = str(expected_dict)
-
-        # Extract generated answer from task output (new format:
-        # {"answer": ..., "retrieval_context": [...]})
-        if isinstance(output, dict):
-            generated_answer = output.get("answer", "")
-        else:
-            generated_answer = str(output)
-
-        row = {
-            "query_id": _get_attr(metadata, "query_id", i),
-            "question": input_val,
-            "gold_answer": expected_val,
-            "generated_answer": generated_answer,
-            "relevant_passage_retrieved": "",
-            "faithfulness_score": eval_map.get(run_id, {}).get("faithfulness", 0.0),
-            "context_precision_score": eval_map.get(run_id, {}).get(
-                "context_precision", 0.0
-            ),
-            "context_recall_score": eval_map.get(run_id, {}).get(
-                "context_recall", 0.0
-            ),
-            "answer_relevancy_score": eval_map.get(run_id, {}).get(
-                "answer_relevancy", 0.0
-            ),
-            "judge_verdict": "",
-            "total_ms": 0,
-            "error": error if error else "",
-        }
-
-        rows.append(row)
-
-    return pd.DataFrame(rows)
 
 
 @beartype

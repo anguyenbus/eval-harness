@@ -271,13 +271,12 @@ def _run_phoenix_native(
         phoenix_config: Phoenix configuration dictionary.
 
     """
-    from datetime import datetime
     from pathlib import Path
 
     from eval_harness.adapters.embeddings import get_embedder
     from eval_harness.experiments.runner import (
-        run_phoenix_experiment,
         export_experiment_results,
+        run_phoenix_experiment,
     )
 
     # Create output directory
@@ -292,7 +291,9 @@ def _run_phoenix_native(
     # Create shared embedder
     embeddings_config = dataset_config.get("embeddings", {})
     embedder_provider = embeddings_config.get("provider", "huggingface")
-    embedder_model = embeddings_config.get("model", "sentence-transformers/all-MiniLM-L6-v2")
+    embedder_model = embeddings_config.get(
+        "model", "sentence-transformers/all-MiniLM-L6-v2"
+    )
 
     embedder = get_embedder(provider=embedder_provider, model=embedder_model)
     print(f"Shared embedder: {embedder_provider}/{embedder_model}")
@@ -311,23 +312,10 @@ def _run_phoenix_native(
     deepeval_config = get_deepeval_config(config)
     judge_model = deepeval_config["judge_model"]
 
-    print(f"Running Phoenix Native experiment...")
+    print("Running Phoenix Native experiment...")
     print(f"  Phoenix endpoint: {phoenix_config['endpoint']}")
     print(f"  Dataset slice: {args.slice}")
     print(f"  Judge model: {judge_model}")
-
-    # Load dataset for export mapping
-    dataset = load_dataset(args.slice, config)
-    dataset_examples = []
-    for query_id, query_text, relevant_passage_id, gold_answer in dataset:
-        dataset_examples.append({
-            "input": query_text,
-            "expected": gold_answer,
-            "metadata": {
-                "query_id": query_id,
-                "relevant_passage_id": relevant_passage_id,
-            },
-        })
 
     # Run experiment
     experiment = run_phoenix_experiment(
@@ -342,8 +330,11 @@ def _run_phoenix_native(
     print(f"Experiment completed: {experiment.get('experiment_name', 'unknown')}")
     print(f"View results at: {phoenix_config['endpoint']}/datasets")
 
-    # Export results
-    export_result = export_experiment_results(experiment, output_dir, dataset_examples)
+    # Export results using Phoenix native methods
+    export_result = export_experiment_results(
+        experiment=experiment,
+        output_dir=output_dir,
+    )
     print(f"Results exported to: {export_result['csv_path']}")
     print(f"Summary exported to: {export_result['json_path']}")
 
@@ -382,7 +373,7 @@ def main() -> None:
         "--output-dir",
         type=Path,
         default=None,
-        help="Output directory for CSV results (default: results/eval_rag/YYYYMMDD_HHMMSS)",
+        help="Output directory for CSV results (default: results/eval_rag/TIMESTAMP)",
     )
     parser.add_argument(
         "--force-reingest",
@@ -439,7 +430,7 @@ def main() -> None:
 
             # Check for native mode
             if phoenix_mode == "native":
-                print(f"Phoenix Native mode enabled (experiment API)")
+                print("Phoenix Native mode enabled (experiment API)")
                 return _run_phoenix_native(
                     args=args,
                     config=config,
@@ -470,7 +461,6 @@ def main() -> None:
             sys.exit(1)
 
     # Create output directory
-    from datetime import datetime
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     if args.output_dir is None:
