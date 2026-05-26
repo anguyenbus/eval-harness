@@ -101,7 +101,7 @@ sequenceDiagram
     participant Adapter as RagAdapter
     participant RAG as User RAG System
     participant Metrics as Metrics
-    participant Bedrock as Amazon Bedrock
+    participant DeepEval as DeepEval
     participant Phoenix as Arize Phoenix
     participant S3 as S3 Storage
     participant DB as DynamoDB
@@ -129,15 +129,19 @@ sequenceDiagram
             Adapter-->>Worker: validated_output
             Worker->>Phoenix: span_retrieval_complete
 
-            Worker->>Metrics: calculate_recall()
+            Worker->>Metrics: calculate_context_precision()
+            Metrics-->>Worker: precision_score
+
+            Worker->>Metrics: calculate_context_recall()
             Metrics-->>Worker: recall_score
 
-            Worker->>Metrics: calculate_f1()
-            Metrics-->>Worker: f1_score
+            Worker->>DeepEval: calculate_faithfulness(answer, context)
+            DeepEval-->>Worker: faithfulness_score
 
-            Worker->>Bedrock: llm_as_judge(answer, context)
-            Bedrock-->>Worker: judgment
-            Worker->>Phoenix: span_llm_judgment
+            Worker->>DeepEval: calculate_answer_relevancy(question, answer)
+            DeepEval-->>Worker: relevancy_score
+
+            Worker->>Phoenix: span_metrics_complete
 
             Worker->>S3: write_csv_row()
             Worker->>DB: update_progress(query_id)
@@ -166,13 +170,16 @@ Your RAG returns retrieved chunks and generated answer.
 Adapter validates structure includes answer with supported flag, retrieved chunks with scores, citations, and timing breakdown.
 
 **Step 5: Metric Calculation**
-- Recall@k: Did any retrieved chunk overlap gold evidence?
-- Precision@k: How many retrieved chunks were relevant?
-- F1: Token overlap between gold and predicted answers
-- LLM judgment: Is answer supported by citations?
+- Context Precision: Are relevant chunks ranked higher than irrelevant ones?
+- Context Recall: Did retrieval find all information needed for gold answer?
+- Faithfulness: Is generated answer factually consistent with retrieved context?
+- Answer Relevancy: Does response directly address the question?
+- Relevant Passage Retrieved: Binary check for gold passage ID in context
 
 **Step 6: CSV Row**
 One row per query with all metrics and timings, written to S3.
+
+Columns: query_id, question, gold_answer, generated_answer, relevant_passage_id, relevant_passage_retrieved, faithfulness_score, context_precision_score, context_recall_score, answer_relevancy_score, total_ms, retrieval_ms, generation_ms
 
 ### 2.3 Telemetry Emitted
 
@@ -183,7 +190,10 @@ For each query, Phoenix receives:
 | `rag_query` | query_id, corpus_name, latency_ms |
 | `retrieval` | top_k, retrieval_ms, chunk_ids |
 | `generation` | model_name, input_tokens, output_tokens, generation_ms |
-| `llm_judge` | judge_model, prompt_tokens, judgment, latency_ms |
+| `deepeval_faithfulness` | score, reason, judge_model, latency_ms |
+| `deepeval_context_precision` | score, reason, judge_model, latency_ms |
+| `deepeval_context_recall` | score, reason, judge_model, latency_ms |
+| `deepeval_answer_relevancy` | score, reason, judge_model, latency_ms |
 | `metrics_calc` | metric_name, value, latency_ms |
 
 ## 3. Cloud Execution Flow
@@ -266,15 +276,16 @@ flowchart TD
     E --> F[Continue to next]
 ```
 
-### 4.3 LLM Judge Error
+### 4.3 LLM Judge Error (DeepEval)
 
 ```mermaid
 flowchart TD
-    A[Call Bedrock] -->|Success| B[Record judgment]
+    A[Call DeepEval Metric] -->|Success| B[Record score + reason]
     A -->|Throttled| C[Retry with backoff]
     A -->|Service error| C
-    C -->|Max retries| D[Fallback: heuristic judgment]
-    D --> E[Record fallback used]
+    C -->|Max retries| D[Fallback: set score to null]
+    D --> E[Record error in Phoenix]
+    E --> F[Continue to next metric]
 ```
 
 ## 5. Output File Structure
@@ -326,7 +337,7 @@ Each result written immediately to S3:
 |-----------|--------|----------|
 | Parse per document | <500ms | Optimized parser, cached models |
 | Metrics calculation | <100ms | Efficient algorithms, lazy eval |
-| LLM judgment | <3s | Claude Sonnet, prompt caching |
+| DeepEval metric (per) | <5s | GPT-4o-mini, concurrent evals |
 | S3 write | <50ms | Multipart upload, retries |
 
 ## 7. Related Documents

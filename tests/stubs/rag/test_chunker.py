@@ -106,7 +106,7 @@ class TestSentenceTransformersEmbedder:
 
     def test_embedder_configuration(self):
         """Test embedder has correct model configuration."""
-        embedder = SentenceTransformersEmbedder()
+        SentenceTransformersEmbedder()
 
         # Verify model name and dimension are configured correctly
         assert EMBEDDING_MODEL == "sentence-transformers/all-MiniLM-L6-v2"

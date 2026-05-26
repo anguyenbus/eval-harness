@@ -12,17 +12,15 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from beartype import beartype
 from rich.console import Console
 from rich.progress import Progress
 
 from eval_harness.stubs.rag.chromadb_config import BATCH_SIZE
-from eval_harness.stubs.rag.chunker import FixedChunker
+from eval_harness.stubs.rag.chunking import ChunkingStrategy
 
 console = Console()
 
 
-@beartype
 class DocumentIngester:
     """
     Batch document ingestion pipeline for ChromaDB.
@@ -34,7 +32,7 @@ class DocumentIngester:
     of documents into ChromaDB collections with progress tracking.
 
     Attributes:
-        _chunker: FixedChunker for text chunking.
+        _chunker: ChunkingStrategy implementation for text chunking.
         _embedder: Embedder with .embed() method for embedding generation.
 
     Example:
@@ -49,12 +47,12 @@ class DocumentIngester:
 
     __slots__ = ("_chunker", "_embedder")
 
-    def __init__(self, chunker: FixedChunker, embedder: Any) -> None:
+    def __init__(self, chunker: ChunkingStrategy, embedder: Any) -> None:
         """
         Initialize document ingester.
 
         Args:
-            chunker: FixedChunker for text chunking.
+            chunker: Any chunker implementing ChunkingStrategy protocol.
             embedder: Any embedder with .embed() method.
 
         """

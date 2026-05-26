@@ -8,13 +8,33 @@ class which generates embeddings using the SentenceTransformers library.
 
 from __future__ import annotations
 
-from beartype import beartype
+import os
+from typing import Final
 
 from eval_harness.stubs.rag.chromadb_config import EMBEDDING_DIM, EMBEDDING_MODEL
 from eval_harness.stubs.rag.exceptions import EmbeddingError
 
+# Force CPU-only mode to avoid CUDA compatibility issues
+os.environ["CUDA_VISIBLE_DEVICES"] = ""
 
-@beartype
+# Lazy tracer import to avoid circular dependency
+_tracer = None
+
+
+def _get_tracer():
+    """Get global tracer instance for span emission."""
+    global _tracer
+    if _tracer is None:
+        try:
+            from opentelemetry.trace import get_tracer
+
+            # Use globally registered tracer (set_global_tracer_provider=True in setup_tracer)
+            _tracer = get_tracer(__name__)
+        except (ImportError, Exception):
+            pass  # Tracing not available
+    return _tracer
+
+
 class SentenceTransformersEmbedder:
     """
     SentenceTransformers embedding generator.
@@ -43,6 +63,10 @@ class SentenceTransformersEmbedder:
     """
 
     __slots__ = ("_model_name", "_dimension", "_model", "_device")
+
+    MODEL_NAME_ATTR: Final[str] = "embedding.model_name"
+    TEXT_ATTR: Final[str] = "embedding.embeddings.0.embedding.text"
+    VECTOR_DIM_ATTR: Final[str] = "embedding.embeddings.0.embedding.vector_dim"
 
     def __init__(self) -> None:
         """Initialize the embedder with configured model (lazy loading)."""
@@ -78,9 +102,32 @@ class SentenceTransformersEmbedder:
 
         return self._model
 
+    def _embed(self, texts: list[str]) -> list[list[float]]:
+        """
+        Internal embedding generation without span emission.
+
+        Args:
+            texts: List of text strings to embed.
+
+        Returns:
+            List of embedding vectors.
+
+        """
+        if not texts:
+            return []
+
+        model = self._load_model()
+        embeddings = model.encode(
+            texts,
+            convert_to_numpy=True,
+            show_progress_bar=False,
+        )
+
+        return [emb.tolist() for emb in embeddings]
+
     def embed(self, texts: list[str]) -> list[list[float]]:
         """
-        Generate embeddings for multiple texts.
+        Generate embeddings for multiple texts with OpenInference span emission.
 
         Args:
             texts: List of text strings to embed.
@@ -93,22 +140,30 @@ class SentenceTransformersEmbedder:
             EmbeddingError: If embedding generation fails.
 
         """
-        if not texts:
+        tracer = _get_tracer()
+
+        if tracer is None:
+            return self._embed(texts)
+
+        from openinference.semconv.trace import OpenInferenceSpanKindValues
+
+        EMBEDDING = OpenInferenceSpanKindValues.EMBEDDING
+
+        with tracer.start_as_current_span(
+            "embed.query", openinference_span_kind=EMBEDDING
+        ) as span:
+            # Set required OpenInference attributes
+            span.set_attribute(self.MODEL_NAME_ATTR, self._model_name)
+
+            if texts:
+                span.set_attribute(self.TEXT_ATTR, texts[0])
+                # Generate embeddings
+                embeddings = self._embed(texts)
+                if embeddings:
+                    span.set_attribute(self.VECTOR_DIM_ATTR, len(embeddings[0]))
+                return embeddings
+
             return []
-
-        try:
-            model = self._load_model()
-            embeddings = model.encode(
-                texts,
-                convert_to_numpy=True,
-                show_progress_bar=False,
-            )
-
-            # Convert to list of lists
-            return [emb.tolist() for emb in embeddings]
-
-        except Exception as e:
-            raise EmbeddingError(f"Failed to generate embeddings: {e}") from e
 
     def embed_single(self, text: str) -> list[float]:
         """
@@ -130,3 +185,31 @@ class SentenceTransformersEmbedder:
 
         embeddings = self.embed([text])
         return embeddings[0]
+
+    def embed_batch(self, texts: list[str]) -> list[list[float]]:
+        """
+        Generate embeddings for a batch of texts (optimized for Zvec/FAISS).
+
+        Args:
+            texts: List of text strings to embed.
+
+        Returns:
+            List of embedding vectors.
+
+        """
+        return self._embed(texts)
+
+    def embed_query(self, question: str) -> list[float]:
+        """
+        Generate embedding for a query question.
+
+        Args:
+            question: Query text to embed.
+
+        Returns:
+            Embedding vector as a list of floats.
+
+        """
+        if not question:
+            raise EmbeddingError("Cannot embed empty text")
+        return self._embed([question])[0]

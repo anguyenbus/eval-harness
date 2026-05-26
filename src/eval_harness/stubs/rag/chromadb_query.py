@@ -74,6 +74,8 @@ def query(
     force_reingest: bool = False,
     phoenix_trace_id: str | None = None,
     embedder: Any = None,
+    chunk_size: int | None = None,
+    chunk_overlap: int | None = None,
 ) -> dict[str, Any]:
     """
     Query the ChromaDB-backed RAG system.
@@ -100,6 +102,9 @@ def query(
         embedder: Optional shared embedder instance. If provided, used instead of
             creating a new embedder. Useful for sharing with RAGAS to avoid
             duplicate model loads. Default: None (creates local embedder).
+        chunk_size: Optional chunk size. If provided, forces re-ingest with this size.
+        chunk_overlap: Optional chunk overlap. If provided with chunk_size,
+            forces re-ingest with this overlap.
 
     Returns:
         Dictionary conforming to rag_query_output.schema.json with:
@@ -132,8 +137,12 @@ def query(
         # Initialize ChromaDB manager
         manager = ChromaDBManager(persist=True)
 
-        # Collection name derived from corpus directory
+        # Collection name derived from corpus directory and chunking config
+        # Different chunking configs use separate collections to avoid conflicts
         collection_name = corpus_dir.stem.replace("-", "_").replace("/", "_")
+        if chunk_size is not None:
+            overlap_suffix = chunk_overlap if chunk_overlap is not None else 0
+            collection_name = f"{collection_name}_c{chunk_size}_o{overlap_suffix}"
 
         # Check if collection exists
         collection_exists = manager.collection_exists(collection_name)
@@ -149,15 +158,29 @@ def query(
 
         # Auto-create and ingest if needed
         if not collection_exists:
+            chunk_info = (
+                f" (chunk_size={chunk_size}, overlap={chunk_overlap})"
+                if chunk_size
+                else ""
+            )
             console.print(
-                f"[WARNING] Collection '{collection_name}' not found. "
-                f"Auto-creating and ingesting from {corpus_dir}"
+                f"[INFO] Collection '{collection_name}' not found{chunk_info}. "
+                f"Creating and ingesting from {corpus_dir}"
             )
 
             collection = manager.get_or_create_collection(collection_name)
 
-            # Initialize ingestion pipeline (use cached embedder)
-            chunker = FixedChunker()
+            # Initialize ingestion pipeline
+            if chunk_size is not None:
+                from eval_harness.stubs.rag.chunking import ConfigurableChunker
+
+                chunker = ConfigurableChunker(
+                    chunk_size=chunk_size,
+                    chunk_overlap=chunk_overlap if chunk_overlap is not None else 0,
+                )
+            else:
+                chunker = FixedChunker()
+
             embedder = _get_embedder()
             ingester = DocumentIngester(chunker, embedder)
 

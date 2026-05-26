@@ -22,7 +22,7 @@ class TestLegalRagBenchSchema:
             "system_version": {
                 "pipeline_version": "0.1.0",
                 "embedder_model": "text-embedding-3-large",
-                "generator_model": "gpt-4o",
+                "generator_model": "gpt-4o-mini",
             },
             "query": {
                 "query_id": "q001",

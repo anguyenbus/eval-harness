@@ -110,7 +110,7 @@ class TestLegalRagBenchConfig:
           legal_rag_bench:
             path: /data/rag/legal_rag_bench
             ragas:
-              judge_model: gpt-4o
+              judge_model: gpt-4o-mini
               judge_model_provider: openai
               temperature: 0
 
@@ -128,7 +128,7 @@ class TestLegalRagBenchConfig:
         config = load_config(config_file)
 
         assert "ragas" in config["datasets"]["legal_rag_bench"]
-        assert config["datasets"]["legal_rag_bench"]["ragas"]["judge_model"] == "gpt-4o"
+        assert config["datasets"]["legal_rag_bench"]["ragas"]["judge_model"] == "gpt-4o-mini"
         assert (
             config["datasets"]["legal_rag_bench"]["ragas"]["judge_model_provider"]
             == "openai"

@@ -44,7 +44,7 @@ metrics:
     enabled: true
 models:
   openai:
-    model: gpt-4o
+    model: gpt-4o-mini
 phoenix:
   enabled: true
   endpoint: http://localhost:6006
@@ -81,7 +81,7 @@ metrics:
     enabled: true
 models:
   openai:
-    model: gpt-4o
+    model: gpt-4o-mini
 phoenix:
   enabled: false
 """)
@@ -113,7 +113,7 @@ metrics:
     enabled: true
 models:
   openai:
-    model: gpt-4o
+    model: gpt-4o-mini
 phoenix:
   enabled: false
   endpoint: http://yaml-endpoint:6006

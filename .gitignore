@@ -229,3 +229,5 @@ extraction_result.json
 data/
 references/
 results/
+.claude/
+agent-os/
