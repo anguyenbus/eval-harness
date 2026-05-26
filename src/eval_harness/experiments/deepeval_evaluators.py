@@ -116,16 +116,10 @@ def create_faithfulness_evaluator(
     if create_evaluator is None:
         raise ImportError("phoenix.evals.create_evaluator not available")
 
-    # Cache metric outside closure for performance
     from deepeval.metrics import FaithfulnessMetric
     from deepeval.test_case import LLMTestCase
 
-    metric = FaithfulnessMetric(
-        model=judge_model,
-        include_reason=True,
-    )
-
-    @create_evaluator(name="faithfulness", kind="LLM")
+    @create_evaluator(name="faithfulness", kind="llm")
     def faithfulness_evaluator(
         output: dict[str, Any] | None,
         expected: str | dict[str, str] | None = None,
@@ -167,6 +161,12 @@ def create_faithfulness_evaluator(
                     "faithfulness cannot be computed."
                 ),
             }
+
+        # Create metric instance per call (thread-safety for concurrent eval)
+        metric = FaithfulnessMetric(
+            model=judge_model,
+            include_reason=True,
+        )
 
         # Create DeepEval test case
         # Note: Faithfulness doesn't use expected_output
@@ -227,16 +227,10 @@ def create_context_precision_evaluator(
     if create_evaluator is None:
         raise ImportError("phoenix.evals.create_evaluator not available")
 
-    # Cache metric outside closure
     from deepeval.metrics import ContextualPrecisionMetric
     from deepeval.test_case import LLMTestCase
 
-    metric = ContextualPrecisionMetric(
-        model=judge_model,
-        include_reason=True,
-    )
-
-    @create_evaluator(name="context_precision", kind="LLM")
+    @create_evaluator(name="context_precision", kind="llm")
     def context_precision_evaluator(
         output: dict[str, Any] | None,
         expected: str | dict[str, str],
@@ -284,6 +278,12 @@ def create_context_precision_evaluator(
                     "contextual precision cannot be computed."
                 ),
             }
+
+        # Create metric instance per call (thread-safety for concurrent eval)
+        metric = ContextualPrecisionMetric(
+            model=judge_model,
+            include_reason=True,
+        )
 
         test_case = LLMTestCase(
             input=input_str,
@@ -342,16 +342,10 @@ def create_context_recall_evaluator(
     if create_evaluator is None:
         raise ImportError("phoenix.evals.create_evaluator not available")
 
-    # Cache metric outside closure
     from deepeval.metrics import ContextualRecallMetric
     from deepeval.test_case import LLMTestCase
 
-    metric = ContextualRecallMetric(
-        model=judge_model,
-        include_reason=True,
-    )
-
-    @create_evaluator(name="context_recall", kind="LLM")
+    @create_evaluator(name="context_recall", kind="llm")
     def context_recall_evaluator(
         output: dict[str, Any] | None,
         expected: str | dict[str, str],
@@ -399,6 +393,12 @@ def create_context_recall_evaluator(
                     "contextual recall cannot be computed."
                 ),
             }
+
+        # Create metric instance per call (thread-safety for concurrent eval)
+        metric = ContextualRecallMetric(
+            model=judge_model,
+            include_reason=True,
+        )
 
         test_case = LLMTestCase(
             input=input_str,
@@ -456,16 +456,10 @@ def create_answer_relevancy_evaluator(
     if create_evaluator is None:
         raise ImportError("phoenix.evals.create_evaluator not available")
 
-    # Cache metric outside closure
     from deepeval.metrics import AnswerRelevancyMetric
     from deepeval.test_case import LLMTestCase
 
-    metric = AnswerRelevancyMetric(
-        model=judge_model,
-        include_reason=True,
-    )
-
-    @create_evaluator(name="answer_relevancy", kind="LLM")
+    @create_evaluator(name="answer_relevancy", kind="llm")
     def answer_relevancy_evaluator(
         output: dict[str, Any] | None,
         input: str | dict[str, str],
@@ -505,6 +499,12 @@ def create_answer_relevancy_evaluator(
                     "answer relevancy cannot be computed."
                 ),
             }
+
+        # Create metric instance per call (thread-safety for concurrent eval)
+        metric = AnswerRelevancyMetric(
+            model=judge_model,
+            include_reason=True,
+        )
 
         test_case = LLMTestCase(
             input=input_str,
