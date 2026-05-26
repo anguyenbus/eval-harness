@@ -198,19 +198,25 @@ def export_experiment_results(
     output_dir: Path,
 ) -> dict[str, Any]:
     """
-    Export experiment results to CSV and JSON.
+    Export experiment results to CSV, JSON, and Parquet.
 
-    Uses experiment.task_runs and experiment.evaluation_runs from Phoenix.
+    Exports scores, costs, and retrieval context from experiment runs.
+    Cost data includes application costs (from Phoenix) and judge costs
+    (from evaluator metadata).
 
     Args:
         experiment: RanExperiment dict from Phoenix run_experiment().
         output_dir: Output directory for results.
 
     Returns:
-        Dictionary with paths to exported files.
+        Dictionary with paths to exported files including:
+            - csv_path: Path to CSV export
+            - json_path: Path to JSON summary
+            - parquet_path: Path to Parquet export with cost columns
 
     """
     import pandas as pd
+    import polars as pl
 
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -223,8 +229,9 @@ def export_experiment_results(
     task_runs = experiment.get("task_runs", [])
     evaluation_runs = experiment.get("evaluation_runs", [])
 
-    # Build a map of run_id -> evaluations
+    # Build maps for evaluations and costs
     eval_map: dict[str, dict[str, float]] = {}
+    eval_cost_map: dict[str, dict[str, float]] = {}
 
     def _get_attr(obj: Any, key: str, default: Any = None) -> Any:
         """Get attribute from both dict-like and object types."""
@@ -240,17 +247,36 @@ def export_experiment_results(
                 for r in result:
                     name = _get_attr(r, "name", "")
                     score = _get_attr(r, "score")
+                    metadata = _get_attr(r, "metadata", {})
+                    eval_cost = _get_attr(metadata, "evaluation_cost", None)
+
                     if name and score is not None:
                         if run_id not in eval_map:
                             eval_map[run_id] = {}
                         eval_map[run_id][name] = float(score)
+
+                    # Store evaluation cost by metric
+                    if name and eval_cost is not None:
+                        if run_id not in eval_cost_map:
+                            eval_cost_map[run_id] = {}
+                        metric_cost_key = f"judge_{name}_cost_usd"
+                        eval_cost_map[run_id][metric_cost_key] = float(eval_cost)
             else:
                 name = _get_attr(result, "name", "")
                 score = _get_attr(result, "score")
+                metadata = _get_attr(result, "metadata", {})
+                eval_cost = _get_attr(metadata, "evaluation_cost", None)
+
                 if name and score is not None:
                     if run_id not in eval_map:
                         eval_map[run_id] = {}
                     eval_map[run_id][name] = float(score)
+
+                if name and eval_cost is not None:
+                    if run_id not in eval_cost_map:
+                        eval_cost_map[run_id] = {}
+                    metric_cost_key = f"judge_{name}_cost_usd"
+                    eval_cost_map[run_id][metric_cost_key] = float(eval_cost)
 
     # Fetch dataset examples to get input/expected/metadata
     example_map: dict[str, dict[str, Any]] = {}
@@ -266,13 +292,21 @@ def export_experiment_results(
         except Exception:
             pass  # Dataset fetch failed, continue without it
 
-    # Build rows
+    # Build rows with cost columns
     rows = []
     for task_run in task_runs:
         run_id = _get_attr(task_run, "id", "")
         example_id = _get_attr(task_run, "dataset_example_id", "")
         output = _get_attr(task_run, "output", {})
         error = _get_attr(task_run, "error") or ""
+
+        # Extract app cost from Phoenix task run
+        app_cost = _get_attr(task_run, "cost", None)
+        if app_cost is None:
+            # Use None which will become NaN in parquet
+            app_cost_usd = None
+        else:
+            app_cost_usd = float(app_cost)
 
         # Get example data
         example = example_map.get(example_id, {})
@@ -298,29 +332,52 @@ def export_experiment_results(
         else:
             generated_answer = str(output) if output else ""
 
+        # Get evaluation scores and judge costs
         eval_scores = eval_map.get(run_id, {})
-        rows.append(
-            {
-                "query_id": query_id,
-                "question": question,
-                "gold_answer": gold_answer,
-                "generated_answer": generated_answer,
-                "relevant_passage_retrieved": relevant_passage,
-                "faithfulness_score": eval_scores.get("faithfulness", 0.0),
-                "context_precision_score": eval_scores.get("context_precision", 0.0),
-                "context_recall_score": eval_scores.get("context_recall", 0.0),
-                "answer_relevancy_score": eval_scores.get("answer_relevancy", 0.0),
-                "judge_verdict": "",
-                "total_ms": 0,
-                "error": error,
-            }
-        )
+        judge_costs = eval_cost_map.get(run_id, {})
+
+        # Sum all judge costs for this row
+        judge_cost_usd = sum(judge_costs.values()) if judge_costs else 0.0
+
+        # Calculate total cost
+        total_cost_usd = None
+        if app_cost_usd is not None:
+            total_cost_usd = app_cost_usd + judge_cost_usd
+
+        row = {
+            "experiment_id": exp_id,
+            "query_id": query_id,
+            "question": question,
+            "gold_answer": gold_answer,
+            "generated_answer": generated_answer,
+            "relevant_passage_retrieved": relevant_passage,
+            "faithfulness_score": eval_scores.get("faithfulness", 0.0),
+            "context_precision_score": eval_scores.get("context_precision", 0.0),
+            "context_recall_score": eval_scores.get("context_recall", 0.0),
+            "answer_relevancy_score": eval_scores.get("answer_relevancy", 0.0),
+            "judge_verdict": "",
+            "total_ms": 0,
+            "error": error,
+            # Cost columns
+            "app_cost_usd": app_cost_usd,
+            "judge_cost_usd": judge_cost_usd,
+            "total_cost_usd": total_cost_usd,
+        }
+
+        # Add per-metric judge costs
+        row.update(judge_costs)
+        rows.append(row)
 
     results_df = pd.DataFrame(rows)
 
     # Export to CSV
     csv_path = output_dir / f"{base_name}_results.csv"
     results_df.to_csv(csv_path, index=False)
+
+    # Export to Parquet with Polars (includes cost columns)
+    parquet_path = output_dir / f"{base_name}_results.parquet"
+    pl_df = pl.from_pandas(results_df)
+    pl_df.write_parquet(parquet_path)
 
     # Export summary to JSON
     json_path = output_dir / f"{base_name}_summary.json"
@@ -332,6 +389,7 @@ def export_experiment_results(
     return {
         "csv_path": str(csv_path),
         "json_path": str(json_path),
+        "parquet_path": str(parquet_path),
     }
 
 

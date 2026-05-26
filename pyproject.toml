@@ -36,6 +36,7 @@ dependencies = [
     "deepeval>=2.0.0",
     "langchain-openai",
     "datasets",
+    "polars>=1.41.0",
 ]
 
 [project.optional-dependencies]
