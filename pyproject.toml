@@ -61,6 +61,7 @@ generate-spans = "eval_harness.runners.generate_spans:main"
 eval-replay = "eval_harness.runners.run_replay_eval:main"
 chunking-compare = "eval_harness.runners.chunking_comparison:main"
 eval-harness-check = "eval_harness.cli.check:check"
+eval-dataset = "eval_harness.cli.dataset:dataset"
 
 [dependency-groups]
 dev = [

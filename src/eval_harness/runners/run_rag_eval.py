@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Any
 
 import pandas as pd
+from beartype import beartype
 from dotenv import load_dotenv
 
 from eval_harness.adapters.rag_adapter import RagAdapter
@@ -255,6 +256,100 @@ def get_rag(
         return RagAdapter(query_callable=chromadb_wrapper, embedder=embedder)
 
 
+@beartype
+def _run_phoenix_native(
+    args: Any,
+    config: dict[str, Any],
+    phoenix_config: dict[str, Any],
+) -> None:
+    """
+    Run evaluation using Phoenix Native experiment API.
+
+    Args:
+        args: Parsed CLI arguments.
+        config: Loaded configuration dictionary.
+        phoenix_config: Phoenix configuration dictionary.
+
+    """
+    from datetime import datetime
+    from pathlib import Path
+
+    from eval_harness.adapters.embeddings import get_embedder
+    from eval_harness.experiments.runner import (
+        run_phoenix_experiment,
+        export_experiment_results,
+    )
+
+    # Create output directory
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    output_dir = Path("results") / "eval_rag" / timestamp
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    # Get dataset config
+    dataset_config = config["datasets"].get("legal_rag_bench", {})
+    corpus_dir = Path(dataset_config.get("path", "data/rag/legal_rag_bench"))
+
+    # Create shared embedder
+    embeddings_config = dataset_config.get("embeddings", {})
+    embedder_provider = embeddings_config.get("provider", "huggingface")
+    embedder_model = embeddings_config.get("model", "sentence-transformers/all-MiniLM-L6-v2")
+
+    embedder = get_embedder(provider=embedder_provider, model=embedder_model)
+    print(f"Shared embedder: {embedder_provider}/{embedder_model}")
+
+    # Get RAG adapter
+    rag_adapter = get_rag(
+        args.rag,
+        force_reingest=args.force_reingest,
+        top_k=args.top_k,
+        embedder=embedder,
+    )
+
+    # Get judge model config
+    from eval_harness.metrics.deepeval_config import get_deepeval_config
+
+    deepeval_config = get_deepeval_config(config)
+    judge_model = deepeval_config["judge_model"]
+
+    print(f"Running Phoenix Native experiment...")
+    print(f"  Phoenix endpoint: {phoenix_config['endpoint']}")
+    print(f"  Dataset slice: {args.slice}")
+    print(f"  Judge model: {judge_model}")
+
+    # Load dataset for export mapping
+    dataset = load_dataset(args.slice, config)
+    dataset_examples = []
+    for query_id, query_text, relevant_passage_id, gold_answer in dataset:
+        dataset_examples.append({
+            "input": query_text,
+            "expected": gold_answer,
+            "metadata": {
+                "query_id": query_id,
+                "relevant_passage_id": relevant_passage_id,
+            },
+        })
+
+    # Run experiment
+    experiment = run_phoenix_experiment(
+        rag_adapter=rag_adapter,
+        corpus_dir=corpus_dir,
+        endpoint=phoenix_config["endpoint"],
+        slice_name=args.slice,
+        experiment_name=f"rag-eval-{args.slice}-{timestamp}",
+        judge_model=judge_model,
+    )
+
+    print(f"Experiment completed: {experiment.get('experiment_name', 'unknown')}")
+    print(f"View results at: {phoenix_config['endpoint']}/datasets")
+
+    # Export results
+    export_result = export_experiment_results(experiment, output_dir, dataset_examples)
+    print(f"Results exported to: {export_result['csv_path']}")
+    print(f"Summary exported to: {export_result['json_path']}")
+
+    sys.exit(0)
+
+
 def main() -> None:
     """Run RAG evaluation on Legal RAG Bench dataset."""
     import argparse
@@ -286,8 +381,8 @@ def main() -> None:
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=Path("results"),
-        help="Output directory for CSV results",
+        default=None,
+        help="Output directory for CSV results (default: results/eval_rag/YYYYMMDD_HHMMSS)",
     )
     parser.add_argument(
         "--force-reingest",
@@ -328,16 +423,31 @@ def main() -> None:
 
     # Initialize Phoenix if enabled
     phoenix_adapter = None
+    phoenix_config = None
+
     if args.enable_phoenix:
         try:
             from eval_harness.observability.config import get_phoenix_config
-            from eval_harness.observability.phoenix_adapter import PhoenixAdapter
 
             phoenix_config = get_phoenix_config(
                 config,
                 cli_enabled=args.enable_phoenix,
                 cli_endpoint=args.phoenix_endpoint,
             )
+
+            phoenix_mode = phoenix_config.get("mode", "spans")
+
+            # Check for native mode
+            if phoenix_mode == "native":
+                print(f"Phoenix Native mode enabled (experiment API)")
+                return _run_phoenix_native(
+                    args=args,
+                    config=config,
+                    phoenix_config=phoenix_config,
+                )
+
+            # Spans mode (original)
+            from eval_harness.observability.phoenix_adapter import PhoenixAdapter
 
             phoenix_adapter = PhoenixAdapter(
                 endpoint=phoenix_config["endpoint"],
@@ -360,6 +470,11 @@ def main() -> None:
             sys.exit(1)
 
     # Create output directory
+    from datetime import datetime
+
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    if args.output_dir is None:
+        args.output_dir = Path("results") / "eval_rag" / timestamp
     args.output_dir.mkdir(parents=True, exist_ok=True)
 
     # Load Legal RAG Bench dataset
@@ -435,11 +550,8 @@ def main() -> None:
         embedder=embedder,
     )
 
-    # Setup output file for incremental writes with timestamp
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    output_file = (
-        args.output_dir / f"legal_rag_bench_{args.slice}_results_{timestamp}.csv"
-    )
+    # Setup output file for incremental writes
+    output_file = args.output_dir / f"legal_rag_bench_{args.slice}_results.csv"
     file_exists = output_file.exists()
 
     # Define CSV columns - maintain backward compatibility with RAGAS schema
