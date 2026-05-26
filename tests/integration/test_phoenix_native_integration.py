@@ -37,10 +37,12 @@ def _create_phoenix_dataset_no_beartype(
     for query_id, query_text, relevant_passage_id, gold_answer in dataset:
         inputs.append({"input": query_text})
         outputs.append({"expected": gold_answer})
-        metadata_list.append({
-            "query_id": query_id,
-            "relevant_passage_id": relevant_passage_id,
-        })
+        metadata_list.append(
+            {
+                "query_id": query_id,
+                "relevant_passage_id": relevant_passage_id,
+            }
+        )
 
     name = dataset_name or f"{DEFAULT_DATASET_NAME}-{slice_name}"
 
@@ -83,9 +85,10 @@ class TestEvaluatorParameterHandling:
     def test_faithfulness_evaluator_with_dict_params(self, mock_task_output):
         """Faithfulness evaluator extracts values from dict parameters."""
         # Mock DeepEval imports to avoid actual LLM calls
-        with patch("deepeval.metrics.FaithfulnessMetric") as mock_metric_class, \
-             patch("deepeval.test_case.LLMTestCase") as mock_test_case_class:
-
+        with (
+            patch("deepeval.metrics.FaithfulnessMetric") as mock_metric_class,
+            patch("deepeval.test_case.LLMTestCase") as mock_test_case_class,
+        ):
             mock_metric = MagicMock()
             mock_metric.score = 0.85
             mock_metric.success = True
@@ -127,9 +130,10 @@ class TestEvaluatorParameterHandling:
 
     def test_faithfulness_evaluator_with_string_params(self, mock_task_output):
         """Faithfulness evaluator works with string parameters."""
-        with patch("deepeval.metrics.FaithfulnessMetric") as mock_metric_class, \
-             patch("deepeval.test_case.LLMTestCase") as mock_test_case_class:
-
+        with (
+            patch("deepeval.metrics.FaithfulnessMetric") as mock_metric_class,
+            patch("deepeval.test_case.LLMTestCase") as mock_test_case_class,
+        ):
             mock_metric = MagicMock()
             mock_metric.score = 0.85
             mock_metric.success = True
@@ -158,9 +162,10 @@ class TestEvaluatorParameterHandling:
 
     def test_context_precision_evaluator_with_output_key_dict(self, mock_task_output):
         """Context precision evaluator handles {'output': ...} dict format."""
-        with patch("deepeval.metrics.ContextualPrecisionMetric") as mock_metric_class, \
-             patch("deepeval.test_case.LLMTestCase") as mock_test_case_class:
-
+        with (
+            patch("deepeval.metrics.ContextualPrecisionMetric") as mock_metric_class,
+            patch("deepeval.test_case.LLMTestCase") as mock_test_case_class,
+        ):
             mock_metric = MagicMock()
             mock_metric.score = 0.75
             mock_metric.success = True
@@ -189,9 +194,10 @@ class TestEvaluatorParameterHandling:
 
     def test_context_recall_evaluator_with_expected_key_dict(self, mock_task_output):
         """Context recall evaluator handles {'expected': ...} dict format."""
-        with patch("deepeval.metrics.ContextualRecallMetric") as mock_metric_class, \
-             patch("deepeval.test_case.LLMTestCase") as mock_test_case_class:
-
+        with (
+            patch("deepeval.metrics.ContextualRecallMetric") as mock_metric_class,
+            patch("deepeval.test_case.LLMTestCase") as mock_test_case_class,
+        ):
             mock_metric = MagicMock()
             mock_metric.score = 0.80
             mock_metric.success = True
@@ -220,10 +226,11 @@ class TestEvaluatorParameterHandling:
 
     def test_answer_relevancy_evaluator_with_dict_input(self, mock_task_output):
         """Answer relevancy evaluator handles dict input parameter."""
-        with patch("deepeval.metrics.AnswerRelevancyMetric") as mock_metric_class, \
-             patch("deepeval.test_case.LLMTestCase") as mock_test_case_class, \
-             patch("eval_harness.adapters.embeddings.get_embedder") as mock_embedder:
-
+        with (
+            patch("deepeval.metrics.AnswerRelevancyMetric") as mock_metric_class,
+            patch("deepeval.test_case.LLMTestCase") as mock_test_case_class,
+            patch("eval_harness.adapters.embeddings.get_embedder") as mock_embedder,
+        ):
             mock_embedder.return_value = MagicMock()
 
             mock_metric = MagicMock()
@@ -253,9 +260,10 @@ class TestEvaluatorParameterHandling:
 
     def test_evaluator_handles_none_output(self):
         """Evaluator handles None output gracefully."""
-        with patch("deepeval.metrics.FaithfulnessMetric") as mock_metric_class, \
-             patch("deepeval.test_case.LLMTestCase") as mock_test_case_class:
-
+        with (
+            patch("deepeval.metrics.FaithfulnessMetric") as mock_metric_class,
+            patch("deepeval.test_case.LLMTestCase") as mock_test_case_class,
+        ):
             mock_metric = MagicMock()
             mock_metric.score = 0.0
             mock_metric.success = False
@@ -282,9 +290,10 @@ class TestEvaluatorParameterHandling:
 
     def test_evaluator_handles_missing_keys_in_dict(self, mock_task_output):
         """Evaluator handles dicts with missing keys gracefully."""
-        with patch("deepeval.metrics.FaithfulnessMetric") as mock_metric_class, \
-             patch("deepeval.test_case.LLMTestCase") as mock_test_case_class:
-
+        with (
+            patch("deepeval.metrics.FaithfulnessMetric") as mock_metric_class,
+            patch("deepeval.test_case.LLMTestCase") as mock_test_case_class,
+        ):
             mock_metric = MagicMock()
             mock_metric.score = 0.85
             mock_metric.success = True
@@ -313,9 +322,10 @@ class TestEvaluatorParameterHandling:
 
     def test_context_recall_evaluator_no_embedder_param(self, mock_task_output):
         """Context recall evaluator creates metric without embedder param."""
-        with patch("deepeval.metrics.ContextualRecallMetric") as mock_metric_class, \
-             patch("deepeval.test_case.LLMTestCase") as mock_test_case_class:
-
+        with (
+            patch("deepeval.metrics.ContextualRecallMetric") as mock_metric_class,
+            patch("deepeval.test_case.LLMTestCase") as mock_test_case_class,
+        ):
             mock_metric = MagicMock()
             mock_metric.score = 0.80
             mock_metric.success = True
@@ -345,9 +355,10 @@ class TestEvaluatorParameterHandling:
 
     def test_failed_evaluator_includes_verdicts_in_metadata(self, mock_task_output):
         """Failed evaluations include verdicts in metadata for debugging."""
-        with patch("deepeval.metrics.FaithfulnessMetric") as mock_metric_class, \
-             patch("deepeval.test_case.LLMTestCase") as mock_test_case_class:
-
+        with (
+            patch("deepeval.metrics.FaithfulnessMetric") as mock_metric_class,
+            patch("deepeval.test_case.LLMTestCase") as mock_test_case_class,
+        ):
             # Create mock verdict objects that return dicts from model_dump()
             mock_verdict_1 = MagicMock()
             mock_verdict_1.verdict = "no"
@@ -392,9 +403,10 @@ class TestEvaluatorParameterHandling:
 
     def test_passed_evaluator_excludes_verdicts_from_metadata(self, mock_task_output):
         """Passed evaluations exclude verdicts from metadata (failed-only pattern)."""
-        with patch("deepeval.metrics.FaithfulnessMetric") as mock_metric_class, \
-             patch("deepeval.test_case.LLMTestCase") as mock_test_case_class:
-
+        with (
+            patch("deepeval.metrics.FaithfulnessMetric") as mock_metric_class,
+            patch("deepeval.test_case.LLMTestCase") as mock_test_case_class,
+        ):
             # Even though verdicts exist, they shouldn't be included for passing scores
             mock_verdict = MagicMock()
             mock_verdict.verdict = "yes"
@@ -528,6 +540,7 @@ class TestTaskOutputFormat:
         }
 
         from pathlib import Path
+
         task = create_rag_task(mock_adapter, Path("/fake/corpus"))
 
         # Test with dict format (Phoenix default)
@@ -555,6 +568,7 @@ class TestTaskOutputFormat:
         }
 
         from pathlib import Path
+
         task = create_rag_task(mock_adapter, Path("/fake/corpus"))
 
         # Test with nested dict format
@@ -576,6 +590,7 @@ class TestTaskOutputFormat:
         }
 
         from pathlib import Path
+
         task = create_rag_task(mock_adapter, Path("/fake/corpus"))
 
         # Test with string format
@@ -597,6 +612,7 @@ class TestTaskOutputFormat:
         }
 
         from pathlib import Path
+
         task = create_rag_task(mock_adapter, Path("/fake/corpus"))
 
         # Test with empty dict
@@ -621,13 +637,15 @@ class TestTaskOutputFormat:
         }
 
         from pathlib import Path
+
         task = create_rag_task(mock_adapter, Path("/fake/corpus"))
         task_output = task({"input": "Question?"})
 
         # Create evaluator and verify it can handle the task output
-        with patch("deepeval.metrics.FaithfulnessMetric") as mock_metric_class, \
-             patch("deepeval.test_case.LLMTestCase") as mock_test_case_class:
-
+        with (
+            patch("deepeval.metrics.FaithfulnessMetric") as mock_metric_class,
+            patch("deepeval.test_case.LLMTestCase") as mock_test_case_class,
+        ):
             mock_metric = MagicMock()
             mock_metric.score = 1.0
             mock_metric.success = True

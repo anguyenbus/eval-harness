@@ -15,9 +15,9 @@ from __future__ import annotations
 
 from typing import Any, Final
 
+import pandas as pd
 from beartype import beartype
 from beartype.typing import Dict, List
-import pandas as pd
 
 # Constants
 DEFAULT_LLM_PROVIDER: Final[str] = "openai"

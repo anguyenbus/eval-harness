@@ -7,11 +7,9 @@ Tests for end-to-end dataset extraction, upload, download, and validation.
 
 from __future__ import annotations
 
-from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pandas as pd
-import pytest
 
 
 class TestDatasetExtractionIntegration:
@@ -174,8 +172,9 @@ class TestDatasetValidationIntegration:
 
     def test_validate_dataset_schema(self) -> None:
         """Test validating dataset has correct schema."""
-        from eval_harness.cli.dataset import validate_dataset
         from click.testing import CliRunner
+
+        from eval_harness.cli.dataset import validate_dataset
 
         runner = CliRunner()
 
@@ -197,8 +196,9 @@ class TestDatasetValidationIntegration:
 
     def test_validate_dataset_with_custom_schema(self) -> None:
         """Test validating dataset with custom input/output keys."""
-        from eval_harness.cli.dataset import validate_dataset
         from click.testing import CliRunner
+
+        from eval_harness.cli.dataset import validate_dataset
 
         runner = CliRunner()
 
@@ -221,8 +221,9 @@ class TestDatasetValidationIntegration:
 
     def test_validate_dataset_detects_missing_columns(self) -> None:
         """Test validation detects missing required columns."""
-        from eval_harness.cli.dataset import validate_dataset
         from click.testing import CliRunner
+
+        from eval_harness.cli.dataset import validate_dataset
 
         runner = CliRunner()
 
@@ -247,7 +248,9 @@ class TestPhoenixClientDatasetsIntegration:
 
     def test_client_create_and_retrieve_dataset(self) -> None:
         """Test creating and retrieving dataset through PhoenixClientWithDatasets."""
-        from eval_harness.replay.phoenix_client_datasets import PhoenixClientWithDatasets
+        from eval_harness.replay.phoenix_client_datasets import (
+            PhoenixClientWithDatasets,
+        )
 
         # Mock base client
         mock_base_client = MagicMock()
@@ -286,7 +289,9 @@ class TestPhoenixClientDatasetsIntegration:
 
     def test_client_list_dataset_versions(self) -> None:
         """Test listing dataset versions through PhoenixClientWithDatasets."""
-        from eval_harness.replay.phoenix_client_datasets import PhoenixClientWithDatasets
+        from eval_harness.replay.phoenix_client_datasets import (
+            PhoenixClientWithDatasets,
+        )
 
         mock_base_client = MagicMock()
 

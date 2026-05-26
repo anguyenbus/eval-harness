@@ -9,8 +9,6 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 
 class TestPhoenixMetricNaming:
     """Tests for Phoenix metric naming conventions."""
@@ -111,7 +109,7 @@ class TestPhoenixMetricNaming:
                     writer.writerows(export_data)
 
             # Verify column names use Phoenix conventions
-            with open(csv_path, "r") as f:
+            with open(csv_path) as f:
                 reader = csv.DictReader(f)
                 headers = reader.fieldnames
 
@@ -145,7 +143,7 @@ class TestPhoenixMetricNaming:
                 json.dump(export_data, f)
 
             # Verify JSON keys use Phoenix conventions
-            with open(json_path, "r") as f:
+            with open(json_path) as f:
                 loaded = json.load(f)
 
                 assert "faithfulness" in loaded["scores"]

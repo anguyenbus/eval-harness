@@ -5,7 +5,6 @@ feature flag toggle between legacy and native modes,
 and trace suppression during evaluation.
 """
 
-import pytest
 from unittest.mock import MagicMock, patch
 
 
@@ -69,7 +68,6 @@ class TestPhase1Integration:
         from eval_harness.observability.config_phoenix_native import (
             get_phoenix_native_config,
         )
-        from eval_harness.observability.phoenix_adapter import PhoenixAdapter
 
         with patch("phoenix.otel.register") as mock_register:
             mock_tracer_provider = MagicMock()

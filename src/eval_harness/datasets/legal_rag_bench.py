@@ -73,7 +73,7 @@ def _get_slice_limit(slice_name: str) -> Optional[int]:
     Get the number of questions for a given slice.
 
     Args:
-        slice_name: Either "pico" (2 questions), "nano" (10 questions) or "full" (100 questions).
+        slice_name: Either "pico" (2), "nano" (10), or "full" (100 questions).
 
     Returns:
         Number of questions to yield, or None for full dataset.
@@ -107,7 +107,7 @@ def load_legal_rag_bench(
 
     Args:
         cache_dir: Path to local cache directory. Default: data/rag/legal_rag_bench/.
-        slice: Either "pico" (2 questions), "nano" (10 questions) or "full" (100 questions). Default: "full".
+        slice: Either "pico" (2), "nano" (10), or "full" (100). Default: "full".
         force_refresh: If True, skip cache and re-download. Default: False.
 
     Yields:

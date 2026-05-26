@@ -1,7 +1,6 @@
 """Tests for Phoenix auto-instrumentation migration."""
 
-import pytest
-from unittest.mock import MagicMock, patch, call
+from unittest.mock import MagicMock, patch
 
 
 class TestPhoenixAutoInstrumentation:
@@ -147,8 +146,8 @@ class TestPhoenixAutoInstrumentation:
 
     def test_span_names_match_existing(self):
         """Test that span names match existing: eval_run, rag_query, retrieval, generation, evaluator."""
+
         from eval_harness.observability.phoenix_adapter import PhoenixAdapter
-        from openinference.semconv.trace import OpenInferenceSpanKindValues
 
         with patch("phoenix.otel.register") as mock_register:
             mock_tracer_provider = MagicMock()

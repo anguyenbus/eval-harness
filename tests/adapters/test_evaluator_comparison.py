@@ -9,8 +9,6 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 
 class TestEvaluatorComparisonInterface:
     """Tests for interface compatibility between DeepEval and Phoenix evaluators."""
@@ -49,9 +47,10 @@ class TestEvaluatorComparisonInterface:
 
     def test_interfaces_compatible(self) -> None:
         """Test both adapters have compatible signatures."""
+        import inspect
+
         from eval_harness.adapters.deepeval_adapter import DeepEvalEvaluator
         from eval_harness.adapters.phoenix_eval_adapter import PhoenixEvalAdapter
-        import inspect
 
         with patch("eval_harness.metrics.deepeval_config.create_deepeval_metrics") as mock_create:
             mock_metrics = {
@@ -128,8 +127,9 @@ class TestEvaluatorOutputFormat:
 
     def test_phoenix_output_format(self) -> None:
         """Test Phoenix output format matches DeepEval."""
-        from eval_harness.adapters.phoenix_eval_adapter import PhoenixEvalAdapter
         import pandas as pd
+
+        from eval_harness.adapters.phoenix_eval_adapter import PhoenixEvalAdapter
 
         rag_output = {
             "query": {"text": "Test question"},
@@ -259,8 +259,9 @@ class TestEvaluatorReasoningExtraction:
 
     def test_phoenix_reasoning_format(self) -> None:
         """Test Phoenix reasoning format matches DeepEval."""
-        from eval_harness.adapters.phoenix_eval_adapter import PhoenixEvalAdapter
         import pandas as pd
+
+        from eval_harness.adapters.phoenix_eval_adapter import PhoenixEvalAdapter
 
         rag_output = {
             "query": {"text": "Test question"},

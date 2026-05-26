@@ -9,8 +9,6 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 
 class TestEvaluatorSwitching:
     """Tests for switching between Phoenix and DeepEval evaluators."""

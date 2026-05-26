@@ -2,8 +2,9 @@
 Tests for Phoenix dataset management.
 """
 
-import pytest
 from pathlib import Path
+
+import pytest
 
 
 def test_create_phoenix_dataset_validates_corpus_dir():

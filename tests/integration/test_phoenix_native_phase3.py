@@ -7,9 +7,7 @@ evaluation with both flag states, and export formats with Phoenix metrics.
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
-
-import pytest
+from unittest.mock import patch
 
 
 class TestPhase3EndToEndEvaluation:
@@ -117,7 +115,7 @@ class TestPhase3EndToEndEvaluation:
             with open(json_path, "w") as f:
                 json.dump(export_data, f)
 
-            with open(json_path, "r") as f:
+            with open(json_path) as f:
                 loaded = json.load(f)
 
                 # Verify Phoenix metric names in export
@@ -137,7 +135,7 @@ class TestPhase3EndToEndEvaluation:
                 writer.writerow(["correctness", "0.90", "0.85"])
                 writer.writerow(["relevance", "0.75", "0.70"])
 
-            with open(csv_path, "r") as f:
+            with open(csv_path) as f:
                 reader = csv.DictReader(f)
                 rows = list(reader)
 
@@ -179,7 +177,7 @@ class TestStatisticalComparisonPreserved:
 
     def test_paired_t_tests_work_with_phoenix_metrics(self) -> None:
         """Test that paired t-tests work with Phoenix metrics."""
-        from eval_harness.replay.comparison import _wilcoxon_test, _cliffs_delta
+        from eval_harness.replay.comparison import _cliffs_delta, _wilcoxon_test
 
         candidate_scores = [0.85, 0.90, 0.88]
         baseline_scores = [0.80, 0.85, 0.83]
@@ -259,7 +257,7 @@ class TestExportFormatsPreserved:
                 writer.writerow(["faithfulness", "0.85", "0.80", "0.03", "0.25", "candidate"])
 
             # Verify format
-            with open(csv_path, "r") as f:
+            with open(csv_path) as f:
                 reader = csv.DictReader(f)
                 headers = reader.fieldnames
 
@@ -302,7 +300,7 @@ class TestExportFormatsPreserved:
             with open(json_path, "w") as f:
                 json.dump(export_data, f)
 
-            with open(json_path, "r") as f:
+            with open(json_path) as f:
                 loaded = json.load(f)
 
                 # Verify structure preserved

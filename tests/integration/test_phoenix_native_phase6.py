@@ -7,10 +7,6 @@ Tests for comprehensive testing, documentation, and deployment readiness.
 from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
-import tempfile
-from pathlib import Path
-
-import pytest
 
 
 class TestComprehensiveTesting:
@@ -101,7 +97,11 @@ class TestComprehensiveTesting:
 
     def test_statistical_accuracy_verified(self) -> None:
         """Test statistical accuracy of comparisons."""
-        from eval_harness.replay.comparison import paired_comparison, _wilcoxon_test, _cliffs_delta
+        from eval_harness.replay.comparison import (
+            _cliffs_delta,
+            _wilcoxon_test,
+            paired_comparison,
+        )
 
         # Known test data
         candidate = [0.85, 0.90, 0.88, 0.92, 0.87]

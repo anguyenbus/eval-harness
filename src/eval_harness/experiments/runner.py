@@ -57,8 +57,7 @@ def create_phoenix_client(
     """
     if Client is None:
         raise ImportError(
-            "Phoenix client not available. "
-            "Install with: pip install arize-phoenix"
+            "Phoenix client not available. Install with: pip install arize-phoenix"
         )
 
     # Phoenix Client uses base_url parameter
@@ -85,6 +84,7 @@ def create_rag_task(
         Task function compatible with Phoenix run_experiment().
 
     """
+
     def rag_task(example: dict[str, Any] | str) -> dict[str, Any]:
         """
         Execute RAG query for a single example.
@@ -257,6 +257,7 @@ def export_experiment_results(
     if dataset_id:
         try:
             from phoenix.client import Client
+
             client = Client(base_url="http://localhost:6006")
             dataset = client.datasets.get_dataset(dataset=dataset_id)
             for example in dataset.examples:
@@ -280,17 +281,11 @@ def export_experiment_results(
         metadata = example.get("metadata", {}) if isinstance(example, dict) else {}
 
         # Extract values
-        question = (
-            input_dict.get("input", "") if isinstance(input_dict, dict) else ""
-        )
+        question = input_dict.get("input", "") if isinstance(input_dict, dict) else ""
         gold_answer = (
-            expected_dict.get("expected", "")
-            if isinstance(expected_dict, dict)
-            else ""
+            expected_dict.get("expected", "") if isinstance(expected_dict, dict) else ""
         )
-        query_id = (
-            metadata.get("query_id", "") if isinstance(metadata, dict) else ""
-        )
+        query_id = metadata.get("query_id", "") if isinstance(metadata, dict) else ""
         relevant_passage = (
             metadata.get("relevant_passage_id", "")
             if isinstance(metadata, dict)
@@ -304,20 +299,22 @@ def export_experiment_results(
             generated_answer = str(output) if output else ""
 
         eval_scores = eval_map.get(run_id, {})
-        rows.append({
-            "query_id": query_id,
-            "question": question,
-            "gold_answer": gold_answer,
-            "generated_answer": generated_answer,
-            "relevant_passage_retrieved": relevant_passage,
-            "faithfulness_score": eval_scores.get("faithfulness", 0.0),
-            "context_precision_score": eval_scores.get("context_precision", 0.0),
-            "context_recall_score": eval_scores.get("context_recall", 0.0),
-            "answer_relevancy_score": eval_scores.get("answer_relevancy", 0.0),
-            "judge_verdict": "",
-            "total_ms": 0,
-            "error": error,
-        })
+        rows.append(
+            {
+                "query_id": query_id,
+                "question": question,
+                "gold_answer": gold_answer,
+                "generated_answer": generated_answer,
+                "relevant_passage_retrieved": relevant_passage,
+                "faithfulness_score": eval_scores.get("faithfulness", 0.0),
+                "context_precision_score": eval_scores.get("context_precision", 0.0),
+                "context_recall_score": eval_scores.get("context_recall", 0.0),
+                "answer_relevancy_score": eval_scores.get("answer_relevancy", 0.0),
+                "judge_verdict": "",
+                "total_ms": 0,
+                "error": error,
+            }
+        )
 
     results_df = pd.DataFrame(rows)
 
@@ -372,9 +369,7 @@ def _calculate_experiment_summary(
         dataset_id = getattr(experiment, "dataset_id", "")
 
     error_count = (
-        int(results_df["error"].ne("").sum())
-        if "error" in results_df.columns
-        else 0
+        int(results_df["error"].ne("").sum()) if "error" in results_df.columns else 0
     )
 
     return {

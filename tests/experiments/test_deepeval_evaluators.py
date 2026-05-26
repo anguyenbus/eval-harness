@@ -5,10 +5,10 @@ Tests for DeepEval metrics wrapped as Phoenix evaluators.
 import pytest
 
 from eval_harness.experiments.deepeval_evaluators import (
-    create_faithfulness_evaluator,
+    create_answer_relevancy_evaluator,
     create_context_precision_evaluator,
     create_context_recall_evaluator,
-    create_answer_relevancy_evaluator,
+    create_faithfulness_evaluator,
 )
 
 

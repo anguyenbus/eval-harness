@@ -203,8 +203,6 @@ class PhoenixClientServerSide:
             List of root span dictionaries.
 
         """
-        import pandas as pd
-
         try:
             spans_df = self._client.spans.get_spans_dataframe(
                 project_name=self._project_name
@@ -291,8 +289,6 @@ class PhoenixClientServerSide:
             List of child span dictionaries.
 
         """
-        import pandas as pd
-
         try:
             spans_df = self._client.spans(project_name=self._project_name)
             child_spans = spans_df[spans_df.get("parent_id") == parent_span_id]

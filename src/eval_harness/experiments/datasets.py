@@ -68,10 +68,12 @@ def create_phoenix_dataset(
     for query_id, query_text, relevant_passage_id, gold_answer in dataset:
         inputs.append({"input": query_text})
         outputs.append({"expected": gold_answer})
-        metadata_list.append({
-            "query_id": query_id,
-            "relevant_passage_id": relevant_passage_id,
-        })
+        metadata_list.append(
+            {
+                "query_id": query_id,
+                "relevant_passage_id": relevant_passage_id,
+            }
+        )
 
     # Create or get dataset in Phoenix
     name = dataset_name or f"{DEFAULT_DATASET_NAME}-{slice_name}"

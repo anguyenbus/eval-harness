@@ -7,10 +7,8 @@ and integration testing for server-side query optimization.
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
 import time
-
-import pytest
+from unittest.mock import MagicMock, patch
 
 
 class TestPerformanceBenchmarking:

@@ -1,7 +1,7 @@
 """Tests for Phoenix dataset extraction utilities."""
 
-import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
+
 import pandas as pd
 
 

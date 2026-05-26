@@ -1,7 +1,7 @@
 """Tests for Phoenix Client Datasets API extension."""
 
-import pytest
 from unittest.mock import MagicMock
+
 import pandas as pd
 
 
@@ -10,7 +10,9 @@ class TestPhoenixClientDatasetsAPI:
 
     def test_dataset_creation_through_phoenix_client(self):
         """Test dataset creation through PhoenixClient."""
-        from eval_harness.replay.phoenix_client_datasets import PhoenixClientWithDatasets
+        from eval_harness.replay.phoenix_client_datasets import (
+            PhoenixClientWithDatasets,
+        )
 
         # Mock base Phoenix client
         mock_base_client = MagicMock()
@@ -42,7 +44,9 @@ class TestPhoenixClientDatasetsAPI:
 
     def test_dataset_retrieval(self):
         """Test dataset retrieval through PhoenixClient."""
-        from eval_harness.replay.phoenix_client_datasets import PhoenixClientWithDatasets
+        from eval_harness.replay.phoenix_client_datasets import (
+            PhoenixClientWithDatasets,
+        )
 
         # Mock base Phoenix client
         mock_base_client = MagicMock()
@@ -64,7 +68,9 @@ class TestPhoenixClientDatasetsAPI:
 
     def test_dataset_version_listing(self):
         """Test dataset version listing through PhoenixClient."""
-        from eval_harness.replay.phoenix_client_datasets import PhoenixClientWithDatasets
+        from eval_harness.replay.phoenix_client_datasets import (
+            PhoenixClientWithDatasets,
+        )
 
         # Mock base Phoenix client
         mock_base_client = MagicMock()
@@ -88,7 +94,9 @@ class TestPhoenixClientDatasetsAPI:
 
     def test_error_handling_consistent_with_existing_patterns(self):
         """Test error handling matches existing PhoenixClient patterns."""
-        from eval_harness.replay.phoenix_client_datasets import PhoenixClientWithDatasets
+        from eval_harness.replay.phoenix_client_datasets import (
+            PhoenixClientWithDatasets,
+        )
 
         # Mock base Phoenix client that raises exception
         mock_base_client = MagicMock()

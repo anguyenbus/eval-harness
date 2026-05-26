@@ -1,6 +1,5 @@
 """Tests for DeepEval trace suppression implementation."""
 
-import pytest
 from unittest.mock import MagicMock, patch
 
 
@@ -9,7 +8,9 @@ class TestDeepEvalTraceSuppression:
 
     def test_deepeval_llm_calls_use_suppress_tracing_when_available(self):
         """Test that suppress_tracing is used when Phoenix is available."""
-        from eval_harness.adapters.deepeval_adapter import _suppress_tracing_if_available
+        from eval_harness.adapters.deepeval_adapter import (
+            _suppress_tracing_if_available,
+        )
 
         # The function should return a context manager
         result = _suppress_tracing_if_available()
@@ -22,7 +23,9 @@ class TestDeepEvalTraceSuppression:
         """Test that a no-op context manager is used when Phoenix is unavailable."""
         # Even when Phoenix is not available, _suppress_tracing_if_available
         # should return a working no-op context manager
-        from eval_harness.adapters.deepeval_adapter import _suppress_tracing_if_available
+        from eval_harness.adapters.deepeval_adapter import (
+            _suppress_tracing_if_available,
+        )
 
         result = _suppress_tracing_if_available()
 

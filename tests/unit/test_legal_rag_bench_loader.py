@@ -109,16 +109,17 @@ class TestLegalRagBenchLoader:
             assert len(results) == 10
 
     def test_returns_correct_tuple_structure(self, tmp_path):
-        """Test that loader returns (query_id, query_text, relevant_passage_id, reference_answer)."""
+        """Test loader returns (query_id, query_text, relevant_passage_id, answer)."""
         # Mock dataset with single item
-        # Note: The actual isaacus/legal-rag-bench dataset uses: id, question, answer, relevant_passage_id
+        # Note: The actual isaacus/legal-rag-bench dataset uses:
+        # id, question, answer, relevant_passage_id
         mock_dataset = MagicMock()
 
         mock_data = [
             {
                 "id": "q001",  # Dataset uses "id" not "query_id"
                 "question": "What is the termination clause?",
-                "relevant_passage_id": "passage_123",  # Dataset uses "relevant_passage_id"
+                "relevant_passage_id": "passage_123",
                 "answer": "The contract can be terminated with 30 days notice.",
             }
         ]

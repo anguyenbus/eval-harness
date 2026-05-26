@@ -14,7 +14,7 @@ import time
 from contextlib import contextmanager
 
 from beartype import beartype
-from beartype.typing import Any, Dict, Final, List, Generator
+from beartype.typing import Any, Dict, Final, Generator, List
 
 # Constants
 DEFAULT_LLM_PROVIDER: Final[str] = "openai"

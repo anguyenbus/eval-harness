@@ -13,7 +13,7 @@ PHOENIX NATIVE MIGRATION: Phase 2.3 - CLI Dataset Management Commands
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Final
+from typing import Final
 
 import click
 import pandas as pd
@@ -54,6 +54,7 @@ def dataset(ctx: click.Context, endpoint: str, project: str) -> None:
         eval-dataset upload --name my-dataset --from-spans
         eval-dataset download --dataset-id abc123 --output dataset.csv
         eval-dataset validate --file dataset.csv
+
     """
     ctx.ensure_object(dict)
     ctx.obj["endpoint"] = endpoint
@@ -77,6 +78,7 @@ def list_datasets(ctx: click.Context, dataset_id: str | None) -> None:
     Examples:
         eval-dataset list
         eval-dataset list --dataset-id my-dataset-id
+
     """
     endpoint = ctx.obj["endpoint"]
 
@@ -113,7 +115,7 @@ def list_datasets(ctx: click.Context, dataset_id: str | None) -> None:
         click.echo()
         click.echo("To view datasets in Phoenix UI:")
         click.echo(f"  1. Open {endpoint} in your browser")
-        click.echo(f"  2. Navigate to the Datasets section")
+        click.echo("  2. Navigate to the Datasets section")
         click.echo()
         click.echo("To get dataset versions, use --dataset-id:")
         click.echo("  eval-dataset list --dataset-id <dataset-id>")
@@ -172,6 +174,7 @@ def upload_dataset(
         eval-dataset upload --name my-dataset --from-spans
         eval-dataset upload --name my-dataset --file local_dataset.csv
         eval-dataset upload --name my-dataset --file data.csv --input-keys question --output-keys answer
+
     """
     endpoint = ctx.obj["endpoint"]
     project = ctx.obj["project"]
@@ -274,7 +277,7 @@ def upload_dataset(
     if dataset_id:
         click.echo(
             click.style("SUCCESS", fg="green", bold=True) +
-            f": Dataset created"
+            ": Dataset created"
         )
         click.echo(f"  Dataset ID: {click.style(dataset_id, fg='cyan')}")
         click.echo(f"  Version: {click.style(version, fg='cyan')}")
@@ -327,6 +330,7 @@ def download_dataset(
     Examples:
         eval-dataset download --dataset-id abc123 --output dataset.csv
         eval-dataset download --dataset-id abc123 --version v1 --output data.json --format json
+
     """
     endpoint = ctx.obj["endpoint"]
 
@@ -430,6 +434,7 @@ def validate_dataset(
     Examples:
         eval-dataset validate --file dataset.csv
         eval-dataset validate --file dataset.csv --input-keys question --output-keys answer
+
     """
     click.echo(f"Validating dataset: {click.style(str(file), fg='cyan')}")
     click.echo()

@@ -9,15 +9,15 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 
 class TestServerSideQueryRootSpans:
     """Tests for server-side root span queries."""
 
     def test_query_root_spans_server_side(self) -> None:
         """Test querying root spans with server-side filtering."""
-        from eval_harness.replay.phoenix_client_server_side import PhoenixClientServerSide
+        from eval_harness.replay.phoenix_client_server_side import (
+            PhoenixClientServerSide,
+        )
 
         with patch("phoenix.client.Client") as mock_client_class:
             mock_client = MagicMock()
@@ -49,7 +49,9 @@ class TestServerSideQueryRootSpans:
 
     def test_query_root_spans_with_filters(self) -> None:
         """Test querying root spans with server-side filters."""
-        from eval_harness.replay.phoenix_client_server_side import PhoenixClientServerSide
+        from eval_harness.replay.phoenix_client_server_side import (
+            PhoenixClientServerSide,
+        )
 
         with patch("phoenix.client.Client") as mock_client_class:
             mock_client = MagicMock()
@@ -80,7 +82,9 @@ class TestServerSideQueryRootSpans:
 
     def test_query_root_spans_empty_result(self) -> None:
         """Test querying root spans returns empty list when no matches."""
-        from eval_harness.replay.phoenix_client_server_side import PhoenixClientServerSide
+        from eval_harness.replay.phoenix_client_server_side import (
+            PhoenixClientServerSide,
+        )
 
         with patch("phoenix.client.Client") as mock_client_class:
             mock_client = MagicMock()
@@ -100,7 +104,9 @@ class TestServerSideQueryChildSpans:
 
     def test_extract_child_spans_server_side(self) -> None:
         """Test extracting child spans with server-side filtering."""
-        from eval_harness.replay.phoenix_client_server_side import PhoenixClientServerSide
+        from eval_harness.replay.phoenix_client_server_side import (
+            PhoenixClientServerSide,
+        )
 
         with patch("phoenix.client.Client") as mock_client_class:
             mock_client = MagicMock()
@@ -133,7 +139,9 @@ class TestServerSideQueryChildSpans:
 
     def test_extract_child_spans_with_kind_filter(self) -> None:
         """Test extracting child spans with span_kind filter."""
-        from eval_harness.replay.phoenix_client_server_side import PhoenixClientServerSide
+        from eval_harness.replay.phoenix_client_server_side import (
+            PhoenixClientServerSide,
+        )
 
         with patch("phoenix.client.Client") as mock_client_class:
             mock_client = MagicMock()
@@ -180,7 +188,9 @@ class TestServerSideQueryMemoryEfficiency:
 
     def test_server_side_query_reduces_memory(self) -> None:
         """Test server-side query reduces memory compared to DataFrame."""
-        from eval_harness.replay.phoenix_client_server_side import PhoenixClientServerSide
+        from eval_harness.replay.phoenix_client_server_side import (
+            PhoenixClientServerSide,
+        )
 
         with patch("phoenix.client.Client") as mock_client_class:
             mock_client = MagicMock()
@@ -202,7 +212,9 @@ class TestServerSideQueryMemoryEfficiency:
 
     def test_streaming_query_for_large_datasets(self) -> None:
         """Test streaming query for very large datasets."""
-        from eval_harness.replay.phoenix_client_server_side import PhoenixClientServerSide
+        from eval_harness.replay.phoenix_client_server_side import (
+            PhoenixClientServerSide,
+        )
 
         with patch("phoenix.client.Client") as mock_client_class:
             mock_client = MagicMock()
@@ -229,8 +241,11 @@ class TestServerSideQueryFallback:
 
     def test_fallback_to_dataframe_on_error(self) -> None:
         """Test fallback to DataFrame when server-side query fails."""
-        from eval_harness.replay.phoenix_client_server_side import PhoenixClientServerSide
         import pandas as pd
+
+        from eval_harness.replay.phoenix_client_server_side import (
+            PhoenixClientServerSide,
+        )
 
         with patch("phoenix.client.Client") as mock_client_class:
             mock_client = MagicMock()

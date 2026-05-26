@@ -2,16 +2,16 @@
 Tests for Phoenix experiment runner.
 """
 
-import pytest
 from pathlib import Path
+
+import pytest
 
 
 def test_create_phoenix_client_raises_without_phoenix():
     """Test that create_phoenix_client raises ImportError without Phoenix."""
-    from eval_harness.experiments.runner import create_phoenix_client
-
     # Mock the Client to None to simulate missing Phoenix
     import eval_harness.experiments.runner as runner_module
+    from eval_harness.experiments.runner import create_phoenix_client
     original_client = runner_module.Client
     runner_module.Client = None
 

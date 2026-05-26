@@ -2,7 +2,6 @@
 Test evaluation span formatting in Phoenix adapter.
 """
 
-import pytest
 
 
 def test_format_evaluation_output_basic():

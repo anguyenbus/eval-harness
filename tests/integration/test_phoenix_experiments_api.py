@@ -7,12 +7,12 @@ experiment execution, export compatibility, and UI comparison.
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
 import tempfile
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
-import pytest
 import pandas as pd
+import pytest
 
 
 class TestPhoenixExperimentsAPIResearch:
@@ -306,7 +306,7 @@ class TestExportCompatibilityLayer:
                 writer.writerows(export_data)
 
             # Verify format
-            with open(csv_path, "r") as f:
+            with open(csv_path) as f:
                 reader = csv.DictReader(f)
                 rows = list(reader)
 
@@ -350,7 +350,7 @@ class TestExportCompatibilityLayer:
                 json.dump(export_data, f)
 
             # Verify format
-            with open(json_path, "r") as f:
+            with open(json_path) as f:
                 loaded = json.load(f)
 
                 assert "averages" in loaded
@@ -378,7 +378,7 @@ class TestExportCompatibilityLayer:
                 writer.writerow(export_data)
 
             # Verify all columns present
-            with open(csv_path, "r") as f:
+            with open(csv_path) as f:
                 reader = csv.DictReader(f)
                 headers = reader.fieldnames
 
@@ -414,7 +414,11 @@ class TestStatisticalComparisonPreserved:
 
     def test_statistical_comparison_preserved(self) -> None:
         """Test all statistical comparison features are preserved."""
-        from eval_harness.replay.comparison import paired_comparison, _wilcoxon_test, _cliffs_delta
+        from eval_harness.replay.comparison import (
+            _cliffs_delta,
+            _wilcoxon_test,
+            paired_comparison,
+        )
 
         candidate_scores = [0.85, 0.90, 0.88]
         baseline_scores = [0.80, 0.85, 0.83]

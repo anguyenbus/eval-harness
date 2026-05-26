@@ -1,6 +1,5 @@
 """Tests for Phoenix native feature flag implementation."""
 
-import pytest
 
 from eval_harness.observability.config_phoenix_native import (
     get_phoenix_native_config,
