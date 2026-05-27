@@ -32,6 +32,21 @@
 | Library | `deepeval` | 4.0.3 | Evaluation | | LLM evaluation framework |
 | Library | `beartype` | 0.22.9 | Type Safety | | Runtime type checking |
 | Library | `python-dotenv` | 1.2.2 | Config | | Environment variable management from .env |
+| Library | `rich` | 14.3.3 | CLI Output | | Terminal formatting and pretty printing |
+| Library | `requests` | 2.32.5 | HTTP | | HTTP library for making API requests |
+| Library | `icontract` | 2.7.3 | Contracts | | Design by contract for Python |
+| Library | `mlflow` | 3.10.1 | ML/LLM Observability | | ML experiment tracking and LLM observability |
+| Library | `garak` | 0.14.1 | LLM Security | | LLM vulnerability scanner |
+| SDK | `zhipuai` | 2.1.5.20250825 | LLM API | | Zhipu AI GLM API client |
+
+## LangChain Ecosystem
+
+| Software Type | Name | Version | Component | Approval Status | Function |
+|---------------|------|---------|-----------|-----------------|----------|
+| Library | `langchain` | 1.2.13 | LLM Framework | | Core LangChain framework for LLM applications |
+| Library | `langchain-core` | 1.2.20 | LLM Framework | | Core LangChain interfaces and base classes |
+| Library | `langchain-community` | 0.4.1 | LLM Framework | | Community-maintained LangChain integrations |
+| Library | `langchain-text-splitters` | 1.1.1 | LLM Framework | | Text splitting utilities for RAG applications |
 
 ## Optional Dependencies
 
