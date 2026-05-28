@@ -1,8 +1,8 @@
 {
   "dataset": "dp_bench",
   "parser": "fast",
-  "timestamp": "20260519_000935",
-  "csv_file": "dp_bench_fast_results_20260519_000935.csv",
+  "timestamp": "20260528_135114",
+  "csv_file": "dp_bench_fast_results_20260528_135114.csv",
   "metrics_avg": {
     "nid": 0.8393,
     "nid_s": 0.8393,

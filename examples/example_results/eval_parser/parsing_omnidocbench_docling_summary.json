@@ -1,8 +1,8 @@
 {
   "dataset": "omnidocbench",
   "parser": "docling",
-  "timestamp": "20260519_001044",
-  "csv_file": "omnidocbench_docling_results_20260519_001044.csv",
+  "timestamp": "20260528_135154",
+  "csv_file": "omnidocbench_docling_results_20260528_135154.csv",
   "metrics_avg": {
     "nid": 0.8437,
     "nid_s": 0.8437,

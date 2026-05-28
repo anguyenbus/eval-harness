@@ -1,0 +1,13 @@
+{
+  "experiment_name": "",
+  "experiment_id": "RXhwZXJpbWVudDo5",
+  "dataset_id": "RGF0YXNldDox",
+  "metrics_avg": {
+    "faithfulness_score": 1.0,
+    "context_precision_score": 0.0,
+    "context_recall_score": 0.5833,
+    "answer_relevancy_score": 0.9
+  },
+  "total_processed": 2,
+  "errors": 0
+}
